@@ -1,0 +1,20 @@
+spring:
+  # Use H2 in-memory DB instead of PostgreSQL
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  # Disable Ollama and PgVector auto-configurations — replaced by TestAiConfiguration
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration
+      - org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingAutoConfiguration
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+
+logging:
+  level:
+    root: WARN
+    org.springframework.ai: WARN
+

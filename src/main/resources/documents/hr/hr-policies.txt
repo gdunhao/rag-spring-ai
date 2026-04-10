@@ -1,0 +1,102 @@
+CLOUDFLOW INC. — EMPLOYEE HANDBOOK & HR POLICIES
+Effective Date: January 1, 2026
+=================================================
+
+SECTION 1: EMPLOYMENT BASICS
+------------------------------
+1.1 Employment Type
+CloudFlow offers full-time, part-time, and contract employment. Full-time employees work 40 hours per week. Part-time employees work 20-30 hours per week. All employees are "at-will" unless otherwise specified in a written employment agreement.
+
+1.2 Probationary Period
+New employees undergo a 90-day probationary period. During this time, performance is closely monitored with check-ins at 30, 60, and 90 days. Benefits (except health insurance) begin after successful completion of the probationary period.
+
+1.3 Work Schedule
+Standard business hours are 9:00 AM to 5:00 PM local time, Monday through Friday. CloudFlow supports flexible scheduling — employees may adjust their hours with manager approval, provided they maintain 4 hours of overlap with their team's core hours (10 AM - 2 PM).
+
+SECTION 2: COMPENSATION & BENEFITS
+------------------------------------
+2.1 Pay Schedule
+Employees are paid bi-weekly on Fridays via direct deposit. Pay stubs are available in the HR portal (hr.cloudflow.io) 2 days before payday.
+
+2.2 Health Insurance
+Full-time employees are eligible for health, dental, and vision insurance from day one. CloudFlow covers 90% of employee premiums and 75% of dependent premiums. Plans include PPO and HMO options through Aetna and United Healthcare.
+
+2.3 Retirement (401k)
+CloudFlow offers a 401(k) plan with a 4% employer match (vested after 2 years). Employees may contribute up to IRS annual limits. A Roth 401(k) option is also available.
+
+2.4 Stock Options
+Full-time employees receive stock option grants as part of their offer. Options vest over 4 years with a 1-year cliff. Additional grants may be awarded based on performance and tenure.
+
+2.5 Professional Development
+Each employee receives a $2,500 annual learning budget for courses, conferences, books, and certifications. Unused budget does not roll over. Requests are approved by direct managers through the HR portal.
+
+SECTION 3: PAID TIME OFF (PTO)
+--------------------------------
+3.1 PTO Allowance
+- Years 1-3: 20 days (160 hours) per year
+- Years 4-7: 25 days (200 hours) per year
+- Years 8+: 30 days (240 hours) per year
+PTO is accrued bi-weekly. Maximum accrual cap is 1.5x annual allowance.
+
+3.2 Sick Leave
+Employees receive 10 sick days per year, separate from PTO. Unused sick days roll over up to a maximum of 30 days. A doctor's note is required for absences exceeding 3 consecutive days.
+
+3.3 Company Holidays
+CloudFlow observes 11 paid holidays: New Year's Day, MLK Day, Presidents' Day, Memorial Day, Juneteenth, Independence Day, Labor Day, Thanksgiving (2 days), Christmas Eve, and Christmas Day.
+
+3.4 Parental Leave
+Primary caregivers receive 16 weeks of paid parental leave. Secondary caregivers receive 8 weeks of paid leave. Leave must be taken within 12 months of the birth or adoption. Part-time return schedules can be arranged.
+
+3.5 Bereavement Leave
+Up to 5 days for immediate family (spouse, child, parent, sibling). Up to 3 days for extended family. Additional unpaid leave may be requested through HR.
+
+SECTION 4: REMOTE WORK POLICY
+-------------------------------
+4.1 CloudFlow is a remote-first company. All positions are remote-eligible unless specified otherwise in the job posting.
+
+4.2 Remote employees must maintain a dedicated workspace with reliable internet (minimum 25 Mbps download). CloudFlow provides a $1,000 home office setup stipend for new employees and $500 annually for equipment upgrades.
+
+4.3 Remote employees must be available during core collaboration hours (10 AM - 2 PM in their team's primary time zone) and responsive on Slack during working hours.
+
+4.4 International remote work is supported in approved countries. Employees must notify HR at least 30 days before relocating internationally. Tax implications and work authorization are the employee's responsibility.
+
+SECTION 5: CODE OF CONDUCT
+----------------------------
+5.1 CloudFlow is committed to maintaining a respectful, inclusive, and harassment-free workplace. Discrimination based on race, gender, age, religion, disability, sexual orientation, or any protected characteristic is strictly prohibited.
+
+5.2 All employees must complete annual training on anti-harassment, diversity & inclusion, and information security. Training is tracked via the HR portal.
+
+5.3 Conflicts of interest must be disclosed to HR and the employee's manager. This includes outside employment, investments in competitors, and personal relationships that may affect business decisions.
+
+5.4 Confidential information (trade secrets, customer data, financial data) must be protected at all times. Violations may result in immediate termination and legal action.
+
+SECTION 6: PERFORMANCE MANAGEMENT
+-----------------------------------
+6.1 Performance reviews are conducted semi-annually (June and December). Reviews include self-assessment, manager assessment, and peer feedback (360-degree).
+
+6.2 Performance is rated on a 5-point scale: Exceptional (5), Exceeds Expectations (4), Meets Expectations (3), Needs Improvement (2), Unsatisfactory (1).
+
+6.3 Employees rated "Needs Improvement" receive a 60-day Performance Improvement Plan (PIP) with specific, measurable goals. Failure to meet PIP goals may result in termination.
+
+6.4 Promotions are based on demonstrated performance, skills growth, and business need. Promotion cycles occur in Q1 and Q3.
+
+SECTION 7: EXPENSE POLICY
+---------------------------
+7.1 Business travel requires pre-approval from direct manager for expenses over $500. Flights should be booked economy class for domestic travel. Business class is permitted for international flights over 6 hours.
+
+7.2 Meals during business travel: up to $75/day in the US, up to $100/day internationally. Alcohol is limited to $25 per meal with clients.
+
+7.3 Expense reports must be submitted within 30 days via Expensify (integrated with the HR portal). Receipts are required for all expenses over $25. Late submissions may not be reimbursed.
+
+SECTION 8: LEAVING CLOUDFLOW
+------------------------------
+8.1 Voluntary resignation requires 2 weeks written notice (4 weeks for directors and above). Notice should be submitted to the direct manager and HR simultaneously.
+
+8.2 Upon departure, employees must return all company equipment within 5 business days. Final paycheck includes unused PTO balance. Stock option exercise periods are defined in the Stock Option Agreement.
+
+8.3 Exit interviews are conducted by HR on the employee's last day. Participation is voluntary but encouraged to help CloudFlow improve.
+
+8.4 Non-compete agreements (where applicable and enforceable) are limited to 12 months and the specific business area the employee worked in.
+
+Contact HR: hr@cloudflow.io | HR Portal: hr.cloudflow.io | Emergency: hr-urgent@cloudflow.io
+

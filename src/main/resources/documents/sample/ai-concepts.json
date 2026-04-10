@@ -1,0 +1,33 @@
+[
+  {
+    "title": "What is RAG?",
+    "content": "RAG stands for Retrieval-Augmented Generation. It combines a retrieval system (like a vector database) with a generative language model. When a user asks a question, relevant documents are retrieved and provided as context to the LLM, which then generates an informed answer.",
+    "category": "concept"
+  },
+  {
+    "title": "What is a Vector Embedding?",
+    "content": "A vector embedding is a numerical representation of text in a high-dimensional space. Similar texts produce similar vectors (closer together in the vector space). This allows semantic search — finding documents by meaning rather than exact keyword matching.",
+    "category": "concept"
+  },
+  {
+    "title": "What is Ollama?",
+    "content": "Ollama is a tool for running large language models locally on your machine. It supports models like Llama, Mistral, Qwen, Gemma, and many others. It provides a REST API compatible with Spring AI's Ollama integration, making it easy to develop AI applications without cloud API costs.",
+    "category": "tool"
+  },
+  {
+    "title": "What is a Vector Store?",
+    "content": "A vector store (or vector database) is a specialized database designed to store, index, and query vector embeddings efficiently. It enables fast similarity search over large collections of document embeddings. Examples include PgVector, Chroma, Pinecone, and Milvus. Spring AI provides SimpleVectorStore for in-memory prototyping.",
+    "category": "concept"
+  },
+  {
+    "title": "What is Chunking?",
+    "content": "Chunking is the process of splitting large documents into smaller pieces (chunks) before creating embeddings. This is important because embedding models have token limits, and smaller chunks tend to produce more focused and accurate embeddings. Spring AI provides TokenTextSplitter for this purpose.",
+    "category": "technique"
+  },
+  {
+    "title": "What is the Qwen Model?",
+    "content": "Qwen (pronounced 'chwen') is a family of large language models developed by Alibaba Cloud. Qwen 3 is the latest generation, featuring improved reasoning, multilingual support, and efficient inference. It comes in various sizes from 0.6B to 235B parameters (including MoE variants). The smaller models (1.7B, 4B) are suitable for local development, while larger models (8B, 14B, 32B) offer better quality for production use. Qwen 3 supports both 'thinking' mode (step-by-step reasoning) and fast direct-response mode.",
+    "category": "model"
+  }
+]
+

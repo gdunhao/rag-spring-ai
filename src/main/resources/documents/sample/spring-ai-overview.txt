@@ -1,0 +1,50 @@
+Spring AI Framework Overview
+============================
+
+Spring AI is a framework that brings the power of artificial intelligence to Spring
+applications. It provides abstractions for working with various AI models, vector
+stores, and document processing pipelines.
+
+Key Features:
+- ChatClient: A fluent API for interacting with language models
+- Embeddings: Convert text to vector representations for semantic search
+- Vector Stores: Store and retrieve document embeddings efficiently
+- RAG (Retrieval-Augmented Generation): Enhance LLM responses with external knowledge
+- Advisors: Middleware-like pattern for cross-cutting concerns (memory, RAG, safety)
+- Function Calling: Let the LLM invoke application functions as tools
+- Structured Output: Parse LLM responses into typed Java objects
+
+Supported LLM Providers:
+- OpenAI (GPT-4, GPT-3.5)
+- Ollama (Llama, Mistral, Qwen, Gemma, and many more local models)
+- Azure OpenAI
+- Amazon Bedrock
+- Google Vertex AI
+- Anthropic Claude
+- Hugging Face
+
+Supported Vector Stores:
+- SimpleVectorStore (in-memory, great for prototyping)
+- PgVector (PostgreSQL extension)
+- Chroma
+- Milvus
+- Pinecone
+- Weaviate
+- Redis
+- Qdrant
+
+The RAG (Retrieval-Augmented Generation) pattern works by:
+1. Ingesting documents and splitting them into chunks
+2. Converting each chunk into a vector embedding
+3. Storing embeddings in a vector store
+4. When a query arrives, converting the query into an embedding
+5. Finding the most similar document chunks via vector similarity search
+6. Including the retrieved chunks as context in the LLM prompt
+7. The LLM generates an answer grounded in the retrieved context
+
+This approach solves key LLM limitations:
+- Reduces hallucination by grounding answers in real data
+- Provides access to private/proprietary knowledge
+- Keeps information up-to-date without retraining
+- Enables citation and source attribution
+

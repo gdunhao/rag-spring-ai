@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: rag-spring-ai
+
+  # ── PostgreSQL datasource (matches docker-compose.yml) ─────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ragdb
+    username: raguser
+    password: ragpassword
+    driver-class-name: org.postgresql.Driver
+
+  # ── Spring AI ──────────────────────────────────────────────────────────
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      # Allow up to 5 minutes for a single LLM call (tool-calling involves multiple
+      # round trips; qwen3:4b on CPU can take 60-120 s per trip)
+      client:
+        read-timeout: PT5M
+        connect-timeout: PT30S
+      chat:
+        options:
+          model: qwen3:4b
+          temperature: 0.7
+          # Cap generation length to keep demo responses snappy
+          num-predict: 512
+      embedding:
+        options:
+          model: nomic-embed-text
+
+    vectorstore:
+      pgvector:
+        # Create the vector_store table and pgvector extension automatically
+        initialize-schema: true
+        # Must match the embedding model output dimension (nomic-embed-text = 768)
+        dimensions: 768
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.ai: DEBUG

@@ -1,0 +1,102 @@
+CLOUDFLOW INC. — TERMS OF SERVICE
+Last Updated: January 15, 2026
+==================================
+
+SECTION 1: ACCEPTANCE OF TERMS
+------------------------------
+1.1 By accessing or using the CloudFlow platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
+
+1.2 CloudFlow Inc. ("Company", "we", "us") reserves the right to update these Terms at any time. We will notify users of material changes via email at least 30 days before they take effect.
+
+1.3 These Terms constitute a legally binding agreement between you ("User", "you") and CloudFlow Inc. governing your use of the Service.
+
+SECTION 2: ACCOUNT REGISTRATION
+--------------------------------
+2.1 You must provide accurate, complete, and current registration information. You are responsible for maintaining the confidentiality of your account credentials.
+
+2.2 You must be at least 18 years old (or the age of majority in your jurisdiction) to create an account. Organizations may create accounts on behalf of employees who are at least 16 years old.
+
+2.3 One person or legal entity may maintain no more than one free account. Additional accounts require a paid subscription.
+
+2.4 You are responsible for all activity that occurs under your account. Notify us immediately at security@cloudflow.io if you suspect unauthorized access.
+
+SECTION 3: SERVICE DESCRIPTION AND AVAILABILITY
+------------------------------------------------
+3.1 CloudFlow provides a cloud-based collaboration and document management platform. Features vary by subscription plan as described at cloudflow.io/pricing.
+
+3.2 We aim to maintain 99.5% uptime for all plans. Enterprise plans include a financial SLA with specific uptime guarantees and credit mechanisms.
+
+3.3 We may perform scheduled maintenance with at least 48 hours advance notice. Emergency maintenance may be performed without notice to address security vulnerabilities or critical bugs.
+
+3.4 The Service is provided "as-is" for free tier users. Paid plans include specific service level commitments as outlined in the applicable plan documentation.
+
+SECTION 4: USER CONTENT AND DATA
+---------------------------------
+4.1 You retain all ownership rights to content you upload to CloudFlow ("User Content"). By uploading content, you grant CloudFlow a limited license to process, store, and display your content solely to provide the Service.
+
+4.2 You represent that you have all necessary rights to upload User Content and that it does not violate any third-party rights, including intellectual property, privacy, or publicity rights.
+
+4.3 CloudFlow does not access, use, or share User Content for advertising purposes. User Content is not used to train AI models unless you explicitly opt-in via Settings → Privacy → AI Training Data Contribution.
+
+4.4 Upon account deletion, User Content is permanently deleted within 30 days. Backups are purged within 90 days. Enterprise customers may request expedited deletion.
+
+SECTION 5: ACCEPTABLE USE POLICY
+----------------------------------
+5.1 You agree not to use the Service to: (a) violate any applicable laws or regulations; (b) infringe intellectual property rights; (c) distribute malware or harmful code; (d) attempt to gain unauthorized access to other accounts or systems; (e) send spam or unsolicited communications.
+
+5.2 You agree not to reverse engineer, decompile, or disassemble any part of the Service. You may not use the Service to build a competing product.
+
+5.3 CloudFlow reserves the right to suspend or terminate accounts that violate this Acceptable Use Policy. We will provide notice and an opportunity to cure when practicable.
+
+SECTION 6: PAYMENT AND BILLING
+-------------------------------
+6.1 Paid plans are billed monthly or annually in advance. All prices are in USD unless otherwise specified.
+
+6.2 You authorize CloudFlow to charge your payment method on file for recurring subscription fees. Failed payments will be retried up to 3 times over 10 days.
+
+6.3 Price increases for existing customers will be communicated at least 60 days in advance and will take effect at the next renewal date.
+
+6.4 Refunds are available within 30 days of initial purchase. Annual plans cancelled mid-term receive prorated credits applicable to future CloudFlow services. No cash refunds after the 30-day period.
+
+SECTION 7: INTELLECTUAL PROPERTY
+----------------------------------
+7.1 The Service, including its source code, design, logos, and documentation, is owned by CloudFlow Inc. and protected by intellectual property laws.
+
+7.2 "CloudFlow" and the CloudFlow logo are registered trademarks of CloudFlow Inc. You may not use our trademarks without prior written consent.
+
+7.3 We welcome feedback and suggestions. By submitting feedback, you grant CloudFlow a perpetual, royalty-free license to use and incorporate such feedback.
+
+SECTION 8: LIMITATION OF LIABILITY
+------------------------------------
+8.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, CLOUDFLOW SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES.
+
+8.2 CloudFlow's total aggregate liability shall not exceed the amounts paid by you in the 12 months preceding the claim.
+
+8.3 These limitations apply regardless of the theory of liability (contract, tort, negligence, strict liability, or otherwise).
+
+SECTION 9: TERMINATION
+------------------------
+9.1 You may terminate your account at any time via Settings → Account → Delete Account. Upon termination, you lose access to the Service and all User Content.
+
+9.2 CloudFlow may terminate or suspend your account for: (a) violation of these Terms; (b) non-payment; (c) extended inactivity (12+ months on free plan); (d) legal or regulatory requirements.
+
+9.3 Provisions that by their nature should survive termination will survive, including Sections 4, 7, 8, and 10.
+
+SECTION 10: DISPUTE RESOLUTION
+-------------------------------
+10.1 These Terms are governed by the laws of the State of Delaware, USA, without regard to conflict of law principles.
+
+10.2 Any disputes shall first be subject to good-faith negotiation for 30 days. If unresolved, disputes shall be resolved by binding arbitration under the rules of the American Arbitration Association.
+
+10.3 Class action waiver: You agree to resolve disputes individually and waive any right to participate in class action lawsuits or class-wide arbitration.
+
+SECTION 11: MISCELLANEOUS
+---------------------------
+11.1 If any provision of these Terms is found unenforceable, the remaining provisions remain in full force and effect.
+
+11.2 CloudFlow's failure to enforce any right or provision does not constitute a waiver of that right.
+
+11.3 These Terms, together with the Privacy Policy and any applicable plan documentation, constitute the entire agreement between you and CloudFlow.
+
+Contact: legal@cloudflow.io | CloudFlow Inc., 100 Innovation Drive, Wilmington, DE 19801
+

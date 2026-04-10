@@ -1,0 +1,62 @@
+services:
+
+  # ── PostgreSQL with pgvector extension ────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ragpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Ollama LLM server ─────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # ── One-shot init container: pulls required models into Ollama ────────────
+  # Runs once after Ollama is healthy; re-running docker compose up is safe
+  # because models are stored in the ollama_data volume and won't be re-downloaded.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Pulling qwen3:4b (chat model)..."
+        ollama pull qwen3:4b
+        echo "Pulling nomic-embed-text (embedding model)..."
+        ollama pull nomic-embed-text
+        echo "All models ready!"
+    restart: "no"
+
+volumes:
+  postgres_data:
+  ollama_data:
+
+
