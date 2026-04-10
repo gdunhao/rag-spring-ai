@@ -653,19 +653,23 @@ The test suite uses **JUnit 5**, **Mockito**, and an **H2 in-memory database** (
 ./mvnw test -Dsurefire.useFile=false
 ```
 
-Test reports are written to `target/surefire-reports/`. Each module has a corresponding controller test and a service test:
+Test reports are written to `target/surefire-reports/`. Each module has at least a controller test; modules with non-trivial service logic also have a dedicated service test:
 
 | Test class | Covers |
 |---|---|
 | `BasicRagControllerTest` / `BasicRagServiceTest` | Demo 1 — Basic RAG |
 | `IngestionControllerTest` / `IngestionServiceTest` | Demo 2 — Document ingestion |
+| `VectorStoreControllerTest` / `VectorStoreServiceTest` | Demo 3 — Vector Store operations |
 | `ChatMemoryControllerTest` / `ChatMemoryServiceTest` | Demo 4 — Chat memory |
 | `AdvisorControllerTest` / `AdvisorServiceTest` | Demo 5 — Advisors |
+| `StructuredOutputControllerTest` | Demo 6 — Structured output |
 | `FunctionCallingControllerTest` / `FunctionConfigTest` | Demo 7 — Function calling |
 | `MultiDocControllerTest` / `MultiDocServiceSmartQueryTest` | Demo 8 — Multi-doc RAG |
 | `MetadataFilterControllerTest` / `MetadataFilterServiceTest` | Demo 9 — Metadata filtering |
-| `HrPolicyControllerTest` | Scenario — HR Q&A |
+| `CustomerSupportControllerTest` | Scenario — Customer Support Bot |
 | `LegalSearchControllerTest` | Scenario — Legal search |
+| `TechDocsControllerTest` | Scenario — Tech Docs Assistant |
+| `HrPolicyControllerTest` | Scenario — HR Q&A |
 
 Test configuration lives in `src/test/resources/application-test.yaml`.
 
@@ -673,32 +677,43 @@ Test configuration lives in `src/test/resources/application-test.yaml`.
 
 ## 🧠 How RAG Works
 
-```
-                  ┌──────────────────────────────────────────────────────────┐
-                  │                    INGESTION  (one-time)                  │
-                  │                                                            │
-  Documents       │  TextReader / JsonReader    TokenTextSplitter             │
-  (.txt · .json   │  ──────────────────────▶   (800 tokens / chunk)          │
-   .pdf · .docx)  │                             ──────────────────────▶       │
-                  │                                                            │
-                  │                             EmbeddingModel                │
-                  │                             (nomic-embed-text)            │
-                  │                             ──────────────────────▶       │
-                  │                                                            │
-                  │                             PgVectorStore                 │
-                  │                             (PostgreSQL + pgvector)       │
-                  └──────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TB
+    subgraph INGEST["📥  INGESTION  (one-time)"]
+        direction LR
+        DOCS["📄  Documents\n.txt · .json · .pdf · .docx"]
+        READER["TextReader / JsonReader\nTikaDocumentReader"]
+        SPLITTER["TokenTextSplitter\n800 tokens / chunk"]
+        EMB_I["EmbeddingModel\n(nomic-embed-text)\n→ 768-dim vector"]
+        DOCS --> READER --> SPLITTER --> EMB_I
+    end
 
-                  ┌──────────────────────────────────────────────────────────┐
-                  │                    QUERY  (per request)                   │
-                  │                                                            │
-  User Question   │  QuestionAnswerAdvisor                                    │
-  ──────────────▶ │  1. Embed question (nomic-embed-text)                     │
-                  │  2. Similarity search → top-K chunks                     │
-                  │  3. Augment prompt: system + chunks + question            │
-                  │  4. Call LLM (qwen3:4b)                                  │
-                  │  5. Return grounded answer  ──────────────────────▶       │
-                  └──────────────────────────────────────────────────────────┘
+    PGV[("🗄️  PgVectorStore\nPostgreSQL 16 + pgvector\nHNSW index · COSINE distance\nPersistent")]
+
+    subgraph QUERY["🔍  QUERY  (per request)"]
+        direction LR
+        USER["❓  User Question"]
+        QAA["QuestionAnswerAdvisor\n① Embed question\n② Similarity search → top-K chunks\n③ Augment prompt: system + context + question"]
+        LLM["🤖  qwen3:4b"]
+        ANS["✅  Grounded Answer"]
+        USER --> QAA --> LLM --> ANS
+    end
+
+    EMB_I -->|"vectorStore.add(chunks)"| PGV
+    PGV -->|"top-K relevant chunks"| QAA
+
+    style INGEST fill:#0d1b2a,stroke:#4a9eff,color:#e0e0e0
+    style QUERY fill:#0d1b2a,stroke:#2ecc71,color:#e0e0e0
+    style PGV fill:#1e3a5f,stroke:#2ecc71,color:#e0e0e0
+    style DOCS fill:#1e3a5f,stroke:#4a9eff,color:#e0e0e0
+    style READER fill:#1a2a4a,stroke:#4a9eff,color:#e0e0e0
+    style SPLITTER fill:#1a2a4a,stroke:#4a9eff,color:#e0e0e0
+    style EMB_I fill:#1e3a5f,stroke:#e67e22,color:#e0e0e0
+    style USER fill:#1e3a5f,stroke:#4a9eff,color:#e0e0e0
+    style QAA fill:#1a3d1a,stroke:#2ecc71,color:#e0e0e0
+    style LLM fill:#2d1a4a,stroke:#9b59b6,color:#e0e0e0
+    style ANS fill:#1e3a5f,stroke:#4a9eff,color:#e0e0e0
 ```
 
 The vector store is **persistent** — documents are stored in PostgreSQL and survive application restarts.
