@@ -47,7 +47,7 @@ public class FunctionCallingService {
                         or is not covered in the knowledge base, use the createTicket tool to
                         create a support ticket.
                         """)
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .tools(supportTools)
                 .user(userMessage)
                 .call()
@@ -64,7 +64,7 @@ public class FunctionCallingService {
                         tools when the user asks about weather or order status. For other
                         questions, use your knowledge base context.
                         """)
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .tools(weatherTools, supportTools)
                 .user(question)
                 .call()

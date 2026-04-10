@@ -69,7 +69,7 @@ public class ChatMemoryService {
     public String chat(String sessionId, String message) {
         activeSessions.add(sessionId);
         return chatClient.prompt()
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
                 .user(message)
                 .call()

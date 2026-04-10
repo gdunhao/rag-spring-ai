@@ -56,10 +56,16 @@ public class TechDocsService {
         var reader = new TextReader(apiGuide);
         reader.getCustomMetadata().put("source", "api-guide");
         reader.getCustomMetadata().put("type", "technical-documentation");
-        var splitter = new TokenTextSplitter(500, 50, 5, 100, true);
+        var splitter = TokenTextSplitter.builder()
+                .withChunkSize(500)
+                .withMinChunkSizeChars(50)
+                .withMinChunkLengthToEmbed(5)
+                .withMaxNumChunks(100)
+                .withKeepSeparator(true)
+                .build();
         List<Document> chunks = splitter.apply(reader.get());
         techStore.add(chunks);
-        this.techAdvisor = new QuestionAnswerAdvisor(techStore);
+        this.techAdvisor = QuestionAnswerAdvisor.builder(techStore).build();
     }
 
     /**

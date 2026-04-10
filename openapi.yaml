@@ -1,0 +1,1790 @@
+openapi: 3.0.3
+
+info:
+  title: RAG Spring AI — API Reference
+  description: |
+    Comprehensive REST API for the **RAG Spring AI Demo** project.
+
+    This application demonstrates **Retrieval-Augmented Generation (RAG)** patterns
+    using [Spring AI](https://docs.spring.io/spring-ai/reference/) and
+    [Ollama](https://ollama.ai/) (`qwen3:4b`), backed by a
+    **PostgreSQL + pgvector** persistent vector store.
+
+    ## Modules
+
+    | # | Tag | Base Path | Description |
+    |---|-----|-----------|-------------|
+    | 1 | `basic-rag` | `/api/basic` | Simple RAG question answering |
+    | 2 | `document-ingestion` | `/api/ingest` | Load text, JSON & PDF documents |
+    | 3 | `vector-store` | `/api/vectorstore` | Similarity search & embeddings |
+    | 4 | `chat-memory` | `/api/chat` | Conversational RAG with session history |
+    | 5 | `advisors` | `/api/advisor` | QuestionAnswerAdvisor, SafeGuard & composition |
+    | 6 | `structured-output` | `/api/structured` | Typed Java records from LLM responses |
+    | 7 | `function-calling` | `/api/function` | LLM-invoked tools with RAG context |
+    | 8 | `multi-document-rag` | `/api/multidoc` | Multiple collections with smart routing |
+    | 9 | `metadata-filtering` | `/api/metadata` | Filter vector search by metadata |
+    | — | `customer-support` | `/api/scenarios/support` | FAQ-powered chatbot with session memory |
+    | — | `legal-search` | `/api/scenarios/legal` | Clause search & compliance checks |
+    | — | `tech-docs` | `/api/scenarios/techdocs` | API documentation Q&A & curl generation |
+    | — | `hr-policy` | `/api/scenarios/hr` | Employee handbook assistant |
+
+    ## Common Notes
+    - The server runs at **http://localhost:8080** by default.
+    - All `POST` endpoints with a request body use `application/json`.
+    - String fields marked `@NotBlank` must be non-null and non-empty.
+    - LLM responses may take **10–180 seconds** on CPU depending on the model and
+      endpoint (function-calling endpoints involve multiple round-trips).
+    - The vector store is **persistent** — ingested documents survive restarts.
+
+  version: 0.0.1-SNAPSHOT
+  contact:
+    name: RAG Spring AI Demo
+  license:
+    name: Educational
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: basic-rag
+    description: "**Demo 1** — Simple RAG question answering over pre-ingested documents."
+  - name: document-ingestion
+    description: "**Demo 2** — Load and chunk text, JSON, and PDF documents into the vector store."
+  - name: vector-store
+    description: "**Demo 3** — Direct similarity search, threshold filtering, and embedding introspection."
+  - name: chat-memory
+    description: "**Demo 4** — Multi-turn conversational RAG; each session keeps its own message history."
+  - name: advisors
+    description: "**Demo 5** — Compose Spring AI advisors: `QuestionAnswerAdvisor`, `SafeGuardAdvisor`, and chained pipelines."
+  - name: structured-output
+    description: "**Demo 6** — Parse LLM responses into typed Java records (`FaqEntry`, `LegalClause`, `ApiEndpoint`)."
+  - name: function-calling
+    description: |
+      **Demo 7** — LLM-invoked tools (function calling) with RAG context.
+      > ⚠️ Endpoints may take **60–180 s** on CPU due to multiple LLM round-trips.
+  - name: multi-document-rag
+    description: "**Demo 8** — Query independent document collections with automatic smart routing."
+  - name: metadata-filtering
+    description: "**Demo 9** — Filter vector similarity search by document metadata (product, category)."
+  - name: customer-support
+    description: "**Scenario** — FAQ-powered customer support chatbot with session memory and ticket creation."
+  - name: legal-search
+    description: "**Scenario** — Legal document clause search, structured extraction, and compliance checks."
+  - name: tech-docs
+    description: "**Scenario** — Technical documentation Q&A, endpoint discovery, and curl example generation."
+  - name: hr-policy
+    description: "**Scenario** — Employee handbook assistant with session memory and structured policy retrieval."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── Demo 1: Basic RAG ────────────────────────────────────────────────────
+  /api/basic/ask:
+    post:
+      tags: [basic-rag]
+      summary: Ask a RAG-powered question
+      description: |
+        Submits a natural-language question. The service embeds it, retrieves the
+        top-K most relevant document chunks from the vector store, augments the
+        prompt with that context, and returns a grounded answer from the LLM.
+
+        > Documents must be ingested first via `POST /api/basic/ingest`.
+      operationId: basicRagAsk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What is RAG and how does it work?"
+      responses:
+        '200':
+          description: LLM answer grounded in retrieved documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+              example:
+                question: "What is RAG and how does it work?"
+                answer: "RAG (Retrieval-Augmented Generation) combines a retrieval step ..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/basic/ingest:
+    post:
+      tags: [basic-rag]
+      summary: Ingest Basic RAG demo documents
+      description: |
+        Reads the classpath documents bundled with the Basic RAG demo, splits them
+        into chunks with `TokenTextSplitter`, generates embeddings via
+        `nomic-embed-text`, and stores them in the shared pgvector store.
+        Calling this endpoint multiple times is idempotent (re-ingests the same files).
+      operationId: basicRagIngest
+      responses:
+        '200':
+          description: Ingestion completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              example:
+                status: "Documents ingested successfully"
+
+  # ── Demo 2: Document Ingestion ────────────────────────────────────────────
+  /api/ingest/text:
+    post:
+      tags: [document-ingestion]
+      summary: Ingest a plain-text document
+      description: |
+        Reads `classpath:documents/sample/spring-ai-overview.txt` using Spring AI's
+        `TextReader`, splits it with `TokenTextSplitter` (default 800 tokens / chunk),
+        and stores the chunks in the pgvector store.
+      operationId: ingestText
+      responses:
+        '200':
+          description: Text document ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionResult'
+              example:
+                source: "spring-ai-overview.txt"
+                format: "text"
+                documentsRead: 1
+                chunksCreated: 8
+                status: "ingested"
+
+  /api/ingest/json:
+    post:
+      tags: [document-ingestion]
+      summary: Ingest a JSON document
+      description: |
+        Reads `classpath:documents/sample/ai-concepts.json` using Spring AI's
+        `JsonReader` (extracts `title`, `content`, and `category` fields).
+        Each JSON object becomes one `Document`. JSON documents are typically
+        small enough that further chunking is skipped.
+      operationId: ingestJson
+      responses:
+        '200':
+          description: JSON document ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionResult'
+              example:
+                source: "ai-concepts.json"
+                format: "json"
+                documentsRead: 12
+                chunksCreated: 12
+                status: "ingested"
+
+  /api/ingest/custom-chunking:
+    post:
+      tags: [document-ingestion]
+      summary: Ingest with custom chunk sizes
+      description: |
+        Ingests the same Spring AI overview text document but allows you to override
+        `TokenTextSplitter` parameters — useful for tuning retrieval quality vs.
+        context window size.
+      operationId: ingestCustomChunking
+      parameters:
+        - name: chunkSize
+          in: query
+          description: Target number of tokens per chunk
+          required: false
+          schema:
+            type: integer
+            default: 400
+            minimum: 50
+            maximum: 4096
+          example: 400
+        - name: minChunkSize
+          in: query
+          description: Minimum chunk size in characters (smaller chunks are discarded)
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 10
+          example: 50
+      responses:
+        '200':
+          description: Document ingested with custom chunk parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomChunkingResult'
+              example:
+                source: "spring-ai-overview.txt"
+                format: "text"
+                chunkSize: 400
+                minChunkSize: 50
+                documentsRead: 1
+                chunksCreated: 14
+                status: "ingested"
+
+  # ── Demo 3: Vector Store Operations ──────────────────────────────────────
+  /api/vectorstore/add-samples:
+    post:
+      tags: [vector-store]
+      summary: Add sample documents to the vector store
+      description: |
+        Adds six pre-defined documents covering Java, Python, Spring Boot, Docker,
+        Kubernetes, and Machine Learning. Each document includes topic and type
+        metadata. Use before calling the search endpoints if the store is empty.
+      operationId: vectorStoreAddSamples
+      responses:
+        '200':
+          description: Sample documents added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentsAdded:
+                    type: integer
+                    description: Number of documents added
+                  status:
+                    type: string
+              example:
+                documentsAdded: 6
+                status: "success"
+
+  /api/vectorstore/search:
+    get:
+      tags: [vector-store]
+      summary: Similarity search (top-K)
+      description: |
+        Embeds the query string and returns the top-K most semantically similar
+        documents from the pgvector store using HNSW / COSINE distance.
+        Results include document content, metadata, and the internal document ID.
+      operationId: vectorStoreSearch
+      parameters:
+        - name: query
+          in: query
+          description: Natural-language search query
+          required: true
+          schema:
+            type: string
+          example: "RAG tutorial"
+        - name: topK
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 50
+          example: 3
+      responses:
+        '200':
+          description: Top-K similar documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VectorSearchResult'
+              example:
+                - id: "d3f1a2b4-..."
+                  content: "Spring Boot simplifies building production-ready Spring applications..."
+                  metadata:
+                    topic: "spring-boot"
+                    type: "framework"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/vectorstore/search-threshold:
+    get:
+      tags: [vector-store]
+      summary: Similarity search with score threshold
+      description: |
+        Same as `/search` but only returns documents whose cosine-similarity score
+        exceeds the given threshold (0.0 = accept all, 1.0 = exact match only).
+        Useful for filtering out low-relevance results.
+      operationId: vectorStoreSearchThreshold
+      parameters:
+        - name: query
+          in: query
+          description: Natural-language search query
+          required: true
+          schema:
+            type: string
+          example: "embeddings"
+        - name: threshold
+          in: query
+          description: Minimum similarity score (0.0–1.0)
+          required: false
+          schema:
+            type: number
+            format: double
+            default: 0.7
+            minimum: 0.0
+            maximum: 1.0
+          example: 0.7
+      responses:
+        '200':
+          description: Documents above the similarity threshold
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VectorSearchResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/vectorstore/embedding-info:
+    get:
+      tags: [vector-store]
+      summary: Inspect embedding dimensions
+      description: |
+        Generates an embedding vector for the given text using the configured
+        `nomic-embed-text` model and returns the vector dimensionality plus a
+        small sample of raw float values.
+      operationId: vectorStoreEmbeddingInfo
+      parameters:
+        - name: text
+          in: query
+          description: Text to embed
+          required: false
+          schema:
+            type: string
+            default: "Hello world"
+          example: "Hello world"
+      responses:
+        '200':
+          description: Embedding metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingInfoResult'
+              example:
+                text: "Hello world"
+                dimensions: 768
+                sampleValues: [0.023, -0.041, 0.016]
+                model: "nomic-embed-text"
+
+  # ── Demo 4: Chat with Memory ──────────────────────────────────────────────
+  /api/chat/sessions:
+    get:
+      tags: [chat-memory]
+      summary: List active chat sessions
+      description: Returns the count and IDs of all in-memory chat sessions that
+        have sent at least one message since the application started.
+      operationId: chatListSessions
+      responses:
+        '200':
+          description: Active session information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfoResult'
+              example:
+                activeSessions: 2
+                sessionIds: ["session1", "session2"]
+
+  /api/chat/{sessionId}:
+    post:
+      tags: [chat-memory]
+      summary: Send a message (RAG + memory)
+      description: |
+        Sends a user message within a named session. The request is handled by
+        both a `QuestionAnswerAdvisor` (retrieves document context) and a
+        `MessageChatMemoryAdvisor` (maintains conversation history). Subsequent
+        messages in the same session can reference earlier turns.
+      operationId: chatRagWithMemory
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+            example:
+              message: "What is Spring AI?"
+      responses:
+        '200':
+          description: LLM response with session context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              example:
+                sessionId: "session1"
+                message: "What is Spring AI?"
+                response: "Spring AI is a framework that provides abstractions for ..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [chat-memory]
+      summary: Clear a session's memory
+      description: |
+        Removes all stored messages for the given session ID. The session can be
+        reused immediately; subsequent messages will start a fresh conversation.
+      operationId: chatClearSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  sessionId:
+                    type: string
+              example:
+                status: "Session cleared"
+                sessionId: "session1"
+
+  /api/chat/{sessionId}/simple:
+    post:
+      tags: [chat-memory]
+      summary: Send a message (memory only, no RAG)
+      description: |
+        Sends a message within a session using **only** the memory advisor —
+        no document retrieval. Useful for demonstrating that memory alone can
+        resolve pronouns and references across turns.
+      operationId: chatMemoryOnly
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+            example:
+              message: "Hello, remember my name is Alice"
+      responses:
+        '200':
+          description: LLM response (memory only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Demo 5: Advisors ──────────────────────────────────────────────────────
+  /api/advisor/custom-retrieval:
+    post:
+      tags: [advisors]
+      summary: RAG with custom retrieval parameters
+      description: |
+        Uses a `QuestionAnswerAdvisor` configured with caller-supplied `topK`
+        and similarity `threshold` values, overriding the defaults.
+      operationId: advisorCustomRetrieval
+      parameters:
+        - name: topK
+          in: query
+          description: Number of document chunks to retrieve
+          required: false
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 50
+          example: 5
+        - name: threshold
+          in: query
+          description: Minimum similarity score for retrieved chunks (0.0–1.0)
+          required: false
+          schema:
+            type: number
+            format: double
+            default: 0.5
+            minimum: 0.0
+            maximum: 1.0
+          example: 0.4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What vector stores are supported?"
+      responses:
+        '200':
+          description: Answer with custom retrieval settings applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/advisor/safeguard:
+    post:
+      tags: [advisors]
+      summary: RAG with content moderation (SafeGuardAdvisor)
+      description: |
+        Wraps the RAG pipeline with a `SafeGuardAdvisor` that blocks prompts
+        containing banned words/phrases. If the prompt is safe, returns the normal
+        LLM answer; otherwise returns a moderation refusal message.
+      operationId: advisorSafeguard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "Tell me about Spring AI"
+      responses:
+        '200':
+          description: LLM answer or moderation refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/advisor/composed:
+    post:
+      tags: [advisors]
+      summary: Multiple advisors composed in a pipeline
+      description: |
+        Demonstrates chaining multiple Spring AI advisors: a logging advisor, the
+        `QuestionAnswerAdvisor` for retrieval, and a `SafeGuardAdvisor` for content
+        moderation, all applied in sequence to a single prompt.
+      operationId: advisorComposed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "How does embedding work?"
+      responses:
+        '200':
+          description: Answer after the full advisor pipeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Demo 6: Structured Output ─────────────────────────────────────────────
+  /api/structured/faq:
+    post:
+      tags: [structured-output]
+      summary: Extract a structured FAQ entry
+      description: |
+        Sends the question to the LLM with a JSON-schema output constraint.
+        The LLM generates a single `FaqEntry` record with `question`, `answer`,
+        and `category` fields parsed from the response using `BeanOutputConverter`.
+      operationId: structuredFaq
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What pricing plans are available?"
+      responses:
+        '200':
+          description: Structured FAQ entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqEntry'
+              example:
+                question: "What pricing plans are available?"
+                answer: "We offer three plans: Starter ($9/mo), Pro ($29/mo), and Enterprise."
+                category: "Pricing"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/structured/legal:
+    post:
+      tags: [structured-output]
+      summary: Extract structured legal clauses
+      description: |
+        Searches the legal documents for clauses matching the query and asks the
+        LLM to return them as a list of `LegalClause` records, each containing
+        `section`, `title`, `summary`, and `relevance` (HIGH / MEDIUM / LOW).
+      operationId: structuredLegal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            example:
+              query: "data privacy and encryption"
+      responses:
+        '200':
+          description: List of structured legal clauses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LegalClause'
+              example:
+                - section: "§4"
+                  title: "Data Privacy"
+                  summary: "User data is encrypted at rest and in transit."
+                  relevance: "HIGH"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/structured/api:
+    post:
+      tags: [structured-output]
+      summary: Extract structured API endpoint documentation
+      description: |
+        Searches the tech docs for API endpoints related to the query and asks the
+        LLM to return them as a list of `ApiEndpoint` records with `method`, `path`,
+        `description`, and `parameters`.
+      operationId: structuredApi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            example:
+              query: "document management"
+      responses:
+        '200':
+          description: List of structured API endpoint descriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiEndpoint'
+              example:
+                - method: "POST"
+                  path: "/documents"
+                  description: "Upload a document to a workspace"
+                  parameters: "workspaceId (required), file (required)"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Demo 7: Function Calling ──────────────────────────────────────────────
+  /api/function/support:
+    post:
+      tags: [function-calling]
+      summary: Handle a support request with automatic tool invocation
+      description: |
+        The LLM is equipped with a `createSupportTicket` tool. When the user
+        describes an issue, the LLM may autonomously call the tool to log a ticket
+        and include the ticket reference in its response.
+
+        > ⚠️ Allow **60–180 seconds** on CPU — multiple LLM round-trips occur.
+      operationId: functionSupport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+            example:
+              message: "My account is locked and I cannot reset my password"
+      responses:
+        '200':
+          description: LLM response (may include ticket reference)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponseBody'
+              example:
+                message: "My account is locked and I cannot reset my password"
+                response: "I've created a support ticket #TKT-1042 for your locked account..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/function/ask:
+    post:
+      tags: [function-calling]
+      summary: Ask with multiple tools available
+      description: |
+        The LLM can choose from several registered tools (e.g., knowledge-base
+        search, ticket creation, product lookup) when formulating its answer.
+
+        > ⚠️ Allow **60–180 seconds** on CPU — multiple LLM round-trips occur.
+      operationId: functionAsk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What features does the API support?"
+      responses:
+        '200':
+          description: LLM answer (may have invoked one or more tools)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Demo 8: Multi-Document RAG ────────────────────────────────────────────
+  /api/multidoc/collections:
+    get:
+      tags: [multi-document-rag]
+      summary: List available document collections
+      description: |
+        Returns the four pre-configured document collections and their descriptions.
+        Valid values for the `{collection}` path variable are:
+        `faq`, `legal`, `tech` (or `technical`), `hr`.
+      operationId: multidocListCollections
+      responses:
+        '200':
+          description: Available document collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionItem'
+              example:
+                - name: "faq"
+                  description: "Customer FAQ — pricing, features, support"
+                - name: "legal"
+                  description: "Terms of Service — legal agreements and policies"
+                - name: "tech"
+                  description: "API Documentation — REST endpoints and authentication"
+                - name: "hr"
+                  description: "HR Policies — PTO, benefits, conduct, compensation"
+
+  /api/multidoc/query/{collection}:
+    post:
+      tags: [multi-document-rag]
+      summary: Query a specific document collection
+      description: |
+        Runs a RAG query against one of the four isolated in-memory vector stores.
+        Use `GET /api/multidoc/collections` to discover valid collection names.
+      operationId: multidocQueryCollection
+      parameters:
+        - name: collection
+          in: path
+          description: "Collection name: `faq`, `legal`, `tech` (or `technical`), `hr`"
+          required: true
+          schema:
+            type: string
+            enum: [faq, legal, tech, technical, hr]
+          example: faq
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What pricing plans are available?"
+      responses:
+        '200':
+          description: Answer from the specified collection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  collection:
+                    type: string
+                  question:
+                    type: string
+                  answer:
+                    type: string
+              example:
+                collection: "faq"
+                question: "What pricing plans are available?"
+                answer: "We offer Starter, Pro, and Enterprise plans..."
+        '400':
+          description: Unknown collection or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/multidoc/smart-query:
+    post:
+      tags: [multi-document-rag]
+      summary: Smart query — auto-route to the best-matching collection
+      description: |
+        Analyses the question text with keyword heuristics to determine the most
+        appropriate collection, then delegates to that collection's RAG pipeline.
+        Returns the answer along with the detected collection name.
+
+        Routing rules:
+        - Keywords like `price`, `plan`, `billing`, `feature` → `faq`
+        - Keywords like `terms`, `legal`, `liability`, `refund` → `legal`
+        - Keywords like `api`, `endpoint`, `auth`, `rest` → `tech`
+        - Keywords like `pto`, `leave`, `salary`, `benefits` → `hr`
+        - Default fallback → `faq`
+      operationId: multidocSmartQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What is the refund policy?"
+      responses:
+        '200':
+          description: Answer with detected collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartQueryResponse'
+              example:
+                question: "What is the refund policy?"
+                detectedCollection: "legal"
+                answer: "Refunds are issued within 30 days..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Demo 9: Metadata Filtering ────────────────────────────────────────────
+  /api/metadata/search/product:
+    get:
+      tags: [metadata-filtering]
+      summary: Similarity search filtered by product name
+      description: |
+        Runs a vector similarity search scoped to documents whose `product` metadata
+        field equals the given value. Uses `FilterExpressionBuilder` to build a
+        type-safe pgvector filter expression.
+      operationId: metadataSearchByProduct
+      parameters:
+        - name: query
+          in: query
+          description: Natural-language search query
+          required: true
+          schema:
+            type: string
+          example: "new features"
+        - name: product
+          in: query
+          description: Product name to filter by
+          required: false
+          schema:
+            type: string
+            default: "cloudflow"
+          example: "cloudflow"
+      responses:
+        '200':
+          description: Filtered search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VectorSearchResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/metadata/search/category:
+    get:
+      tags: [metadata-filtering]
+      summary: Similarity search filtered by document category
+      description: |
+        Runs a vector similarity search scoped to documents whose `category` metadata
+        field equals the given value (e.g., `release-notes`, `tutorial`).
+      operationId: metadataSearchByCategory
+      parameters:
+        - name: query
+          in: query
+          description: Natural-language search query
+          required: true
+          schema:
+            type: string
+          example: "updates"
+        - name: category
+          in: query
+          description: Document category to filter by
+          required: false
+          schema:
+            type: string
+            default: "release-notes"
+          example: "release-notes"
+      responses:
+        '200':
+          description: Filtered search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VectorSearchResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/metadata/ask:
+    post:
+      tags: [metadata-filtering]
+      summary: RAG query scoped to a specific product
+      description: |
+        Combines metadata filtering with a full RAG pipeline. Only document chunks
+        belonging to the specified product are considered during retrieval, making
+        the answer strictly product-scoped.
+      operationId: metadataAsk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductQuestionRequest'
+            example:
+              question: "What new features were added?"
+              product: "cloudflow"
+      responses:
+        '200':
+          description: Product-scoped RAG answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  question:
+                    type: string
+                  product:
+                    type: string
+                  answer:
+                    type: string
+              example:
+                question: "What new features were added?"
+                product: "cloudflow"
+                answer: "CloudFlow 2.4 added real-time collaboration and a new drag-and-drop UI..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Scenario: Customer Support ────────────────────────────────────────────
+  /api/scenarios/support/{sessionId}:
+    post:
+      tags: [customer-support]
+      summary: Send a customer support message
+      description: |
+        Sends a message to the customer support bot. The bot has access to the
+        FAQ knowledge base (RAG), remembers the conversation history (memory),
+        and can autonomously create support tickets (function calling).
+        Each `sessionId` represents an independent conversation.
+      operationId: supportChat
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+            example:
+              message: "What pricing plans do you offer?"
+      responses:
+        '200':
+          description: Bot response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportChatResponse'
+              example:
+                sessionId: "session1"
+                message: "What pricing plans do you offer?"
+                response: "We offer Starter at $9/month, Pro at $29/month, and Enterprise..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [customer-support]
+      summary: End a customer support session
+      description: Clears the in-memory conversation history for the given session.
+      operationId: supportEndSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  sessionId:
+                    type: string
+              example:
+                status: "Session ended"
+                sessionId: "session1"
+
+  # ── Scenario: Legal Document Search ──────────────────────────────────────
+  /api/scenarios/legal/search:
+    post:
+      tags: [legal-search]
+      summary: Search legal clauses (free-text answer)
+      description: |
+        Performs a RAG search over the Terms of Service document and returns
+        a free-text answer from the LLM grounded in the retrieved clauses.
+      operationId: legalSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            example:
+              query: "What are the data privacy terms?"
+      responses:
+        '200':
+          description: Legal search result (free text)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  result:
+                    type: string
+              example:
+                query: "What are the data privacy terms?"
+                result: "According to §4, all user data is encrypted at rest..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/legal/extract:
+    post:
+      tags: [legal-search]
+      summary: Extract structured legal clauses
+      description: |
+        Searches for clauses matching the query and asks the LLM to structure them
+        as a list of `LegalClause` records (section, title, summary, relevance).
+      operationId: legalExtract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            example:
+              query: "termination and cancellation"
+      responses:
+        '200':
+          description: Structured legal clause list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LegalClause'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/legal/compliance:
+    post:
+      tags: [legal-search]
+      summary: Compliance check for a business practice
+      description: |
+        Evaluates whether a described business practice is compliant with the
+        Terms of Service. The LLM answers with a compliance assessment and
+        references the relevant clauses.
+      operationId: legalCompliance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplianceRequest'
+            example:
+              practice: "Sharing user data with third-party advertisers without consent"
+      responses:
+        '200':
+          description: Compliance assessment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  practice:
+                    type: string
+                  compliant:
+                    type: string
+                    description: "Compliance verdict (e.g., COMPLIANT / NON_COMPLIANT / UNCLEAR)"
+                  assessment:
+                    type: string
+              example:
+                practice: "Sharing user data with third-party advertisers without consent"
+                compliant: "NON_COMPLIANT"
+                assessment: "This practice violates §4.2 (Data Privacy) and §7 (Third-Party Sharing)..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Scenario: Tech Docs Assistant ────────────────────────────────────────
+  /api/scenarios/techdocs/ask:
+    post:
+      tags: [tech-docs]
+      summary: Ask a technical question about the API
+      description: |
+        RAG-powered Q&A over the API documentation. Returns a free-text answer
+        grounded in the retrieved documentation chunks.
+      operationId: techDocsAsk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "How do I authenticate with the API?"
+      responses:
+        '200':
+          description: Technical answer from the docs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+              example:
+                question: "How do I authenticate with the API?"
+                answer: "Authentication uses Bearer tokens. Pass the token in the Authorization header..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/techdocs/endpoints:
+    post:
+      tags: [tech-docs]
+      summary: Find API endpoints for a feature
+      description: |
+        Searches the API documentation for endpoints related to the described feature
+        and returns them as a list of structured `ApiEndpoint` records.
+      operationId: techDocsEndpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+            example:
+              feature: "document management"
+      responses:
+        '200':
+          description: List of relevant API endpoints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiEndpoint'
+              example:
+                - method: "POST"
+                  path: "/documents"
+                  description: "Upload a document to a workspace"
+                  parameters: "workspaceId (required), file (required)"
+                - method: "GET"
+                  path: "/documents/{id}"
+                  description: "Retrieve a document by ID"
+                  parameters: "id (path, required)"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/techdocs/curl:
+    post:
+      tags: [tech-docs]
+      summary: Generate a curl example for an API operation
+      description: |
+        Generates a ready-to-run `curl` command for the described operation by
+        searching the API docs for relevant context and asking the LLM to produce
+        an example command.
+      operationId: techDocsCurl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationRequest'
+            example:
+              operation: "upload a document to a workspace"
+      responses:
+        '200':
+          description: curl command example
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operation:
+                    type: string
+                  curl:
+                    type: string
+              example:
+                operation: "upload a document to a workspace"
+                curl: "curl -X POST https://api.example.com/documents \\\n  -H 'Authorization: Bearer <token>' \\\n  -F 'file=@/path/to/doc.pdf' \\\n  -F 'workspaceId=ws-123'"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  # ── Scenario: HR Policy Q&A ───────────────────────────────────────────────
+  /api/scenarios/hr/chat/{sessionId}:
+    post:
+      tags: [hr-policy]
+      summary: Conversational HR Q&A with session memory
+      description: |
+        Maintains a multi-turn conversation with the HR assistant. Each session
+        uses both `QuestionAnswerAdvisor` (HR policy knowledge base) and
+        `MessageChatMemoryAdvisor` (conversation history).
+      operationId: hrChat
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "How many PTO days do I get in my first year?"
+      responses:
+        '200':
+          description: HR assistant response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HrChatResponse'
+              example:
+                sessionId: "emp123"
+                question: "How many PTO days do I get in my first year?"
+                answer: "In your first year you accrue 15 PTO days..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/hr/policy:
+    post:
+      tags: [hr-policy]
+      summary: Get structured policy information
+      description: |
+        Retrieves a `PolicyInfo` record describing the HR policy for the given topic.
+        Fields: `policyName`, `summary`, `eligibility`, `keyPoints`.
+      operationId: hrPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopicRequest'
+            example:
+              topic: "parental leave"
+      responses:
+        '200':
+          description: Structured HR policy information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyInfo'
+              example:
+                policyName: "Parental Leave Policy"
+                summary: "All full-time employees are eligible for 12 weeks of paid parental leave."
+                eligibility: "Full-time employees with at least 6 months tenure"
+                keyPoints: "12 weeks paid, applies to birth and adoption, concurrent with FMLA"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/scenarios/hr/quick:
+    post:
+      tags: [hr-policy]
+      summary: Quick single-turn HR answer
+      description: |
+        Stateless (no memory) single-turn HR question answering. Use when you need
+        a fast answer without starting a persistent session.
+      operationId: hrQuick
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+            example:
+              question: "What health insurance options are available?"
+      responses:
+        '200':
+          description: Quick HR answer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionAnswerResponse'
+              example:
+                question: "What health insurance options are available?"
+                answer: "The company offers three health plans: Basic, Standard, and Premium PPO..."
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────────────────────
+components:
+
+  # ── Parameters ──────────────────────────────────────────────────────────────
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      description: Unique session identifier (any non-empty string)
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      example: "session1"
+
+  # ── Reusable Responses ───────────────────────────────────────────────────────
+  responses:
+    ValidationError:
+      description: Request validation failed (blank required field, constraint violated)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-04-10T12:00:00Z"
+            status: 400
+            error: "Bad Request"
+            message: "question: must not be blank"
+
+  # ── Schemas ──────────────────────────────────────────────────────────────────
+  schemas:
+
+    # ── Request Bodies ─────────────────────────────────────────────────────────
+    QuestionRequest:
+      type: object
+      description: Request body that carries a natural-language question.
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+          description: A non-blank natural-language question
+          example: "What is RAG and how does it work?"
+
+    MessageRequest:
+      type: object
+      description: Request body for conversational/chat endpoints.
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: A non-blank conversational message
+          example: "What is Spring AI?"
+
+    QueryRequest:
+      type: object
+      description: Request body for search and extraction endpoints.
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: A non-blank search or lookup query
+          example: "data privacy and encryption"
+
+    ProductQuestionRequest:
+      type: object
+      description: Question scoped to a specific product (metadata filtering).
+      required:
+        - question
+        - product
+      properties:
+        question:
+          type: string
+          minLength: 1
+          description: The question to ask
+          example: "What new features were added?"
+        product:
+          type: string
+          minLength: 1
+          description: Product name used as a metadata filter
+          example: "cloudflow"
+
+    ComplianceRequest:
+      type: object
+      description: A business practice to evaluate for legal compliance.
+      required:
+        - practice
+      properties:
+        practice:
+          type: string
+          minLength: 1
+          description: Description of the business practice to check
+          example: "Sharing user data with third-party advertisers without consent"
+
+    FeatureRequest:
+      type: object
+      description: A feature description for API endpoint discovery.
+      required:
+        - feature
+      properties:
+        feature:
+          type: string
+          minLength: 1
+          description: Feature or capability to search for in the API docs
+          example: "document management"
+
+    OperationRequest:
+      type: object
+      description: An operation description for curl example generation.
+      required:
+        - operation
+      properties:
+        operation:
+          type: string
+          minLength: 1
+          description: Description of the API operation to generate curl for
+          example: "upload a document to a workspace"
+
+    TopicRequest:
+      type: object
+      description: An HR policy topic to retrieve structured information for.
+      required:
+        - topic
+      properties:
+        topic:
+          type: string
+          minLength: 1
+          description: HR policy topic
+          example: "parental leave"
+
+    # ── Structured Output Records ──────────────────────────────────────────────
+    FaqEntry:
+      type: object
+      description: A structured FAQ entry extracted from LLM output.
+      properties:
+        question:
+          type: string
+          description: The FAQ question
+        answer:
+          type: string
+          description: The FAQ answer
+        category:
+          type: string
+          description: Category this FAQ belongs to (e.g., Pricing, Support)
+      example:
+        question: "What pricing plans are available?"
+        answer: "We offer Starter ($9/mo), Pro ($29/mo), and Enterprise plans."
+        category: "Pricing"
+
+    LegalClause:
+      type: object
+      description: A structured legal clause extracted from LLM output.
+      properties:
+        section:
+          type: string
+          description: Section name or number (e.g., "§4.2")
+        title:
+          type: string
+          description: Clause title
+        summary:
+          type: string
+          description: Brief summary of the clause
+        relevance:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+          description: Relevance to the query
+      example:
+        section: "§4"
+        title: "Data Privacy"
+        summary: "User data is encrypted at rest and in transit."
+        relevance: "HIGH"
+
+    ApiEndpoint:
+      type: object
+      description: A structured API endpoint description extracted from LLM output.
+      properties:
+        method:
+          type: string
+          enum: [GET, POST, PUT, PATCH, DELETE]
+          description: HTTP method
+        path:
+          type: string
+          description: Endpoint path (e.g., "/documents/{id}")
+        description:
+          type: string
+          description: What the endpoint does
+        parameters:
+          type: string
+          description: Comma-separated list of parameters and their requirements
+      example:
+        method: "POST"
+        path: "/documents"
+        description: "Upload a document to a workspace"
+        parameters: "workspaceId (required), file (required)"
+
+    PolicyInfo:
+      type: object
+      description: Structured HR policy information extracted from LLM output.
+      properties:
+        policyName:
+          type: string
+          description: Name of the HR policy
+        summary:
+          type: string
+          description: Brief summary of the policy
+        eligibility:
+          type: string
+          description: Who is eligible for this policy
+        keyPoints:
+          type: string
+          description: Comma-separated key policy points
+      example:
+        policyName: "Parental Leave Policy"
+        summary: "All full-time employees receive 12 weeks of paid parental leave."
+        eligibility: "Full-time employees with ≥ 6 months tenure"
+        keyPoints: "12 weeks paid, applies to birth and adoption, concurrent with FMLA"
+
+    # ── Response Bodies ────────────────────────────────────────────────────────
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Human-readable status message
+      example:
+        status: "Documents ingested successfully"
+
+    QuestionAnswerResponse:
+      type: object
+      properties:
+        question:
+          type: string
+          description: The original question
+        answer:
+          type: string
+          description: The LLM-generated answer
+      example:
+        question: "What is RAG?"
+        answer: "RAG (Retrieval-Augmented Generation) combines retrieval with generation..."
+
+    MessageResponseBody:
+      type: object
+      properties:
+        message:
+          type: string
+          description: The original message
+        response:
+          type: string
+          description: The LLM-generated response
+      example:
+        message: "My account is locked"
+        response: "I've created ticket #TKT-1042 for your issue..."
+
+    ChatResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        message:
+          type: string
+        response:
+          type: string
+      example:
+        sessionId: "session1"
+        message: "What is Spring AI?"
+        response: "Spring AI is a framework that abstracts LLM interactions..."
+
+    SupportChatResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        message:
+          type: string
+        response:
+          type: string
+      example:
+        sessionId: "session1"
+        message: "What pricing plans do you offer?"
+        response: "We offer Starter ($9/mo), Pro ($29/mo), and Enterprise plans..."
+
+    HrChatResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+      example:
+        sessionId: "emp123"
+        question: "How many PTO days do I get?"
+        answer: "In your first year you accrue 15 PTO days..."
+
+    SessionInfoResult:
+      type: object
+      properties:
+        activeSessions:
+          type: integer
+          description: Number of sessions with at least one message
+        sessionIds:
+          type: array
+          items:
+            type: string
+          description: List of active session IDs
+      example:
+        activeSessions: 2
+        sessionIds: ["session1", "session2"]
+
+    IngestionResult:
+      type: object
+      properties:
+        source:
+          type: string
+          description: Source file name
+        format:
+          type: string
+          description: File format (`text` or `json`)
+        documentsRead:
+          type: integer
+          description: Number of raw documents read from the file
+        chunksCreated:
+          type: integer
+          description: Number of chunks stored in the vector store
+        status:
+          type: string
+          description: Ingestion status (always `ingested` on success)
+      example:
+        source: "spring-ai-overview.txt"
+        format: "text"
+        documentsRead: 1
+        chunksCreated: 8
+        status: "ingested"
+
+    CustomChunkingResult:
+      type: object
+      properties:
+        source:
+          type: string
+        format:
+          type: string
+        chunkSize:
+          type: integer
+          description: Target chunk size in tokens as applied
+        minChunkSize:
+          type: integer
+          description: Minimum chunk size in characters as applied
+        documentsRead:
+          type: integer
+        chunksCreated:
+          type: integer
+        status:
+          type: string
+      example:
+        source: "spring-ai-overview.txt"
+        format: "text"
+        chunkSize: 400
+        minChunkSize: 50
+        documentsRead: 1
+        chunksCreated: 14
+        status: "ingested"
+
+    VectorSearchResult:
+      type: object
+      description: A single document returned by a vector similarity search.
+      properties:
+        id:
+          type: string
+          description: Document UUID assigned by the vector store
+        content:
+          type: string
+          description: Document text content
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Key-value metadata attached to the document (e.g., source, topic, type)
+      example:
+        id: "d3f1a2b4-0001-0000-0000-000000000001"
+        content: "Spring Boot simplifies building production-ready Spring applications..."
+        metadata:
+          topic: "spring-boot"
+          type: "framework"
+
+    EmbeddingInfoResult:
+      type: object
+      properties:
+        text:
+          type: string
+          description: The input text that was embedded
+        dimensions:
+          type: integer
+          description: Vector dimensionality (768 for nomic-embed-text)
+        sampleValues:
+          type: array
+          items:
+            type: number
+            format: float
+          description: First three raw float values of the embedding vector
+        model:
+          type: string
+          description: Name of the embedding model used
+      example:
+        text: "Hello world"
+        dimensions: 768
+        sampleValues: [0.023, -0.041, 0.016]
+        model: "nomic-embed-text"
+
+    CollectionItem:
+      type: object
+      description: A named document collection available for multi-doc RAG.
+      properties:
+        name:
+          type: string
+          description: Collection identifier
+        description:
+          type: string
+          description: Human-readable description of collection contents
+      example:
+        name: "faq"
+        description: "Customer FAQ — pricing, features, support"
+
+    SmartQueryResponse:
+      type: object
+      properties:
+        question:
+          type: string
+        detectedCollection:
+          type: string
+          description: The collection the routing heuristic selected
+        answer:
+          type: string
+      example:
+        question: "What is the refund policy?"
+        detectedCollection: "legal"
+        answer: "Refunds are processed within 30 days of cancellation..."
+
+    ErrorResponse:
+      type: object
+      description: Standard error response body.
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+      example:
+        timestamp: "2026-04-10T12:00:00Z"
+        status: 400
+        error: "Bad Request"
+        message: "question: must not be blank"
+

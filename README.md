@@ -1,9 +1,9 @@
 # RAG with Spring AI & Ollama — Comprehensive Demo Project
 
 <p align="center">
-  <img alt="Java 21" src="https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white">
-  <img alt="Spring Boot 3.4" src="https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot&logoColor=white">
-  <img alt="Spring AI 1.0" src="https://img.shields.io/badge/Spring_AI-1.0.0-6DB33F?logo=spring&logoColor=white">
+  <img alt="Java 25" src="https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white">
+  <img alt="Spring Boot 3.5" src="https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?logo=springboot&logoColor=white">
+  <img alt="Spring AI 1.1" src="https://img.shields.io/badge/Spring_AI-1.1.4-6DB33F?logo=spring&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/Ollama-qwen3:4b-black?logo=ollama&logoColor=white">
   <img alt="PostgreSQL + pgvector" src="https://img.shields.io/badge/PostgreSQL-16+pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
@@ -23,6 +23,7 @@
 - [Running Locally — Step by Step](#running-locally--step-by-step)
 - [Project Architecture](#️-project-architecture)
 - [API Reference](#-api-reference)
+- [Swagger / OpenAPI Specification](#-swagger--openapi-specification)
 - [Configuration](#️-configuration)
 - [Makefile Reference](#️-makefile-reference)
 - [Testing](#-testing)
@@ -60,9 +61,9 @@
 
 | Layer | Technology | Version | Role |
 |-------|-----------|---------|------|
-| Language | Java | 21 (LTS) | Application runtime |
-| Framework | Spring Boot | 3.4.9 | Web + DI + auto-configuration |
-| AI Framework | Spring AI | 1.0.0 | LLM abstraction, RAG, advisors, tools |
+| Language | Java | 25 (LTS) | Application runtime |
+| Framework | Spring Boot | 3.5.13 | Web + DI + auto-configuration |
+| AI Framework | Spring AI | 1.1.4 | LLM abstraction, RAG, advisors, tools |
 | LLM / Embeddings | Ollama | latest | Local model server |
 | Chat model | Qwen 3 4B | `qwen3:4b` | Instruction-following, tool calling |
 | Embedding model | Nomic Embed Text | `nomic-embed-text` | 768-dim text embeddings |
@@ -79,7 +80,7 @@
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| **Java** | 21+ | Runtime (project targets Java 21) |
+| **Java** | 25+ | Runtime (project targets Java 25) |
 | **Docker & Docker Compose** | 24+ | Runs PostgreSQL + pgvector + Ollama |
 | **Git** | any | Clone the repo |
 | **make** *(optional)* | any | Convenience wrapper around Maven & Docker |
@@ -91,15 +92,15 @@
 
 ```bash
 java -version
-# Should print: openjdk version "21.x.x" or higher
+# Should print: openjdk version "25.x.x" or higher
 ```
 
-If you need Java 21, install it via [SDKMAN](https://sdkman.io/) (recommended) or [Adoptium](https://adoptium.net/):
+If you need Java 25, install it via [SDKMAN](https://sdkman.io/) (recommended) or [Adoptium](https://adoptium.net/):
 
 ```bash
-# SDKMAN
-sdk install java 21.0.3-tem
-sdk use java 21.0.3-tem
+# SDKMAN — check available Java 25 builds with: sdk list java
+sdk install java 25.0.2-tem
+sdk use java 25.0.2-tem
 ```
 
 ---
@@ -306,7 +307,7 @@ Each module follows the same pattern: `*Controller.java` handles HTTP and delega
 |-----------|-----------|------|
 | LLM / Embeddings | Ollama (`qwen3:4b`, `nomic-embed-text`) | 11434 |
 | Vector Store | PostgreSQL 16 + pgvector | 5432 |
-| Application | Spring Boot 3.4 + Spring AI 1.0 | 8080 |
+| Application | Spring Boot 3.5 + Spring AI 1.1 | 8080 |
 
 ---
 
@@ -560,6 +561,53 @@ curl -s -X POST http://localhost:8080/api/scenarios/hr/quick \
   -H "Content-Type: application/json" \
   -d '{"question": "What health insurance options are available?"}' | jq
 ```
+
+---
+
+## 📄 Swagger / OpenAPI Specification
+
+A complete **OpenAPI 3.0** document covering every endpoint in this project is available at:
+
+> **[`openapi.yaml`](openapi.yaml)**
+
+It describes all 13 modules × their endpoints, request/response schemas, path/query parameters, default values, validation constraints, and worked examples — following [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3) best practices.
+
+### View interactively with Swagger UI
+
+Paste the raw file URL (or its contents) into the **[Swagger Editor](https://editor.swagger.io/)** online, or serve it locally:
+
+```bash
+# Option A — Docker (one-liner)
+docker run -p 8081:8080 \
+  -e SWAGGER_JSON=/openapi.yaml \
+  -v "$(pwd)/openapi.yaml:/openapi.yaml" \
+  swaggerapi/swagger-ui
+
+# Then open http://localhost:8081
+```
+
+```bash
+# Option B — Node.js / npx
+npx @stoplight/spectral-cli lint openapi.yaml   # validate
+```
+
+### Highlights
+
+| # | Tag | Endpoints | Key schemas |
+|---|-----|-----------|-------------|
+| 1 | `basic-rag` | `POST /api/basic/ask`, `POST /api/basic/ingest` | `QuestionRequest`, `QuestionAnswerResponse` |
+| 2 | `document-ingestion` | `POST /api/ingest/{text,json,custom-chunking}` | `IngestionResult`, `CustomChunkingResult` |
+| 3 | `vector-store` | `POST /api/vectorstore/add-samples`, `GET /api/vectorstore/{search,search-threshold,embedding-info}` | `VectorSearchResult`, `EmbeddingInfoResult` |
+| 4 | `chat-memory` | `POST/DELETE /api/chat/{sessionId}`, `POST /api/chat/{sessionId}/simple`, `GET /api/chat/sessions` | `MessageRequest`, `ChatResponse`, `SessionInfoResult` |
+| 5 | `advisors` | `POST /api/advisor/{custom-retrieval,safeguard,composed}` | `QuestionRequest`, `QuestionAnswerResponse` |
+| 6 | `structured-output` | `POST /api/structured/{faq,legal,api}` | `FaqEntry`, `LegalClause`, `ApiEndpoint` |
+| 7 | `function-calling` | `POST /api/function/{support,ask}` | `MessageRequest`, `MessageResponseBody` |
+| 8 | `multi-document-rag` | `GET /api/multidoc/collections`, `POST /api/multidoc/{query/{collection},smart-query}` | `CollectionItem`, `SmartQueryResponse` |
+| 9 | `metadata-filtering` | `GET /api/metadata/search/{product,category}`, `POST /api/metadata/ask` | `ProductQuestionRequest`, `VectorSearchResult` |
+| — | `customer-support` | `POST/DELETE /api/scenarios/support/{sessionId}` | `SupportChatResponse` |
+| — | `legal-search` | `POST /api/scenarios/legal/{search,extract,compliance}` | `LegalClause`, `ComplianceRequest` |
+| — | `tech-docs` | `POST /api/scenarios/techdocs/{ask,endpoints,curl}` | `ApiEndpoint`, `FeatureRequest`, `OperationRequest` |
+| — | `hr-policy` | `POST /api/scenarios/hr/{chat/{sessionId},policy,quick}` | `PolicyInfo`, `TopicRequest`, `HrChatResponse` |
 
 ---
 
