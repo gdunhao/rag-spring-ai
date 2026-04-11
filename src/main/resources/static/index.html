@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Spring AI Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: 'Inter', system-ui, sans-serif; }
+    code, pre, .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+    /* JSON Syntax Highlighting */
+    .jk { color: #93c5fd; }
+    .js { color: #86efac; }
+    .jn { color: #fbbf24; }
+    .jb { color: #f472b6; }
+    .jz { color: #94a3b8; font-style: italic; }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+    /* Animations */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+
+    /* Inputs */
+    textarea { min-height: 72px; resize: vertical; }
+    input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
+
+    /* Nav items */
+    .nav-item { cursor: pointer; position: relative; transition: background 0.15s; }
+    .nav-item:hover { background: rgba(255,255,255,0.05); }
+    .nav-item.active { background: rgba(255,255,255,0.07); }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 4px; bottom: 4px;
+      width: 3px;
+      border-radius: 0 2px 2px 0;
+      background: var(--accent, #6366f1);
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex overflow-hidden">
+
+<!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+<aside class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-full overflow-y-auto shrink-0">
+
+  <!-- Branding -->
+  <div class="p-4 border-b border-gray-800 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">AI</div>
+      <div>
+        <div class="text-sm font-semibold text-white">RAG Spring AI</div>
+        <div class="text-xs text-gray-400">Demo Playground</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 p-2 overflow-y-auto">
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest px-2 pt-3 pb-1">Demos</p>
+    <div id="nav-demos"></div>
+    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest px-2 pt-4 pb-1">Scenarios</p>
+    <div id="nav-scenarios"></div>
+  </nav>
+
+  <!-- Footer -->
+  <div class="p-3 border-t border-gray-800 shrink-0">
+    <div class="text-[10px] text-gray-500 text-center leading-5">
+      <div class="font-medium text-gray-400">qwen3:4b · nomic-embed-text</div>
+      <div>PostgreSQL + pgvector (768d)</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════ MAIN ═══════════════════════════════ -->
+<main class="flex-1 overflow-y-auto bg-gray-950">
+  <div id="app" class="p-6 max-w-6xl mx-auto min-h-full"></div>
+</main>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// DATA — 13 modules, 35+ endpoints
+// ══════════════════════════════════════════════════════════════════════════
+const MODULES = [
+  // ── DEMOS ──────────────────────────────────────────────────────────────
+  {
+    id:'basic', label:'Basic RAG', badge:'Demo 1', color:'#818cf8', icon:'🔍', group:'demos',
+    description:'Simple RAG question answering over pre-ingested Spring AI documents.',
+    endpoints:[
+      { id:'basic-ingest', name:'Ingest Documents', method:'POST', path:'/api/basic/ingest',
+        description:'Load the bundled Spring AI documents into the vector store. Run this first before asking questions.',
+        fields:[] },
+      { id:'basic-ask', name:'Ask a Question', method:'POST', path:'/api/basic/ask',
+        description:'RAG-powered question answering grounded in retrieved document chunks.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'What is RAG and how does it work?',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'ingestion', label:'Document Ingestion', badge:'Demo 2', color:'#22d3ee', icon:'📄', group:'demos',
+    description:'Load and chunk text, JSON, and PDF documents into the pgvector store.',
+    endpoints:[
+      { id:'ingest-text', name:'Ingest Text', method:'POST', path:'/api/ingest/text',
+        description:'Read spring-ai-overview.txt via TextReader and store chunks (800 tokens/chunk, default).', fields:[] },
+      { id:'ingest-json', name:'Ingest JSON', method:'POST', path:'/api/ingest/json',
+        description:'Read ai-concepts.json via JsonReader. Each JSON object becomes one Document.', fields:[] },
+      { id:'ingest-custom', name:'Custom Chunking', method:'POST', path:'/api/ingest/custom-chunking',
+        description:'Ingest the overview text with custom TokenTextSplitter chunk sizes.',
+        fields:[
+          {name:'chunkSize',  label:'Chunk Size (tokens)', type:'number', default:400, min:50,  max:4096, loc:'query'},
+          {name:'minChunkSize',label:'Min Chunk Size (chars)',type:'number', default:50,  min:10,           loc:'query'}
+        ]}
+    ]
+  },
+  {
+    id:'vectorstore', label:'Vector Store', badge:'Demo 3', color:'#34d399', icon:'🗄️', group:'demos',
+    description:'Direct pgvector similarity search, threshold filtering, and embedding introspection.',
+    endpoints:[
+      { id:'vs-add', name:'Add Sample Documents', method:'POST', path:'/api/vectorstore/add-samples',
+        description:'Add 6 pre-defined documents (Java, Python, Spring Boot, Docker, Kubernetes, ML) to the store.',
+        fields:[] },
+      { id:'vs-search', name:'Similarity Search', method:'GET', path:'/api/vectorstore/search',
+        description:'Embed the query and return the top-K most semantically similar documents (HNSW + COSINE).',
+        fields:[
+          {name:'query',label:'Search Query',type:'text', placeholder:'RAG tutorial',req:true,loc:'query'},
+          {name:'topK', label:'Top K',        type:'number',default:3,min:1,max:50,        loc:'query'}
+        ]},
+      { id:'vs-threshold', name:'Search with Threshold', method:'GET', path:'/api/vectorstore/search-threshold',
+        description:'Like Similarity Search but only returns documents above the similarity threshold.',
+        fields:[
+          {name:'query',    label:'Search Query',          type:'text',  placeholder:'embeddings',req:true,loc:'query'},
+          {name:'threshold',label:'Threshold (0.0 – 1.0)', type:'number',default:0.7,min:0,max:1,step:0.05,loc:'query'}
+        ]},
+      { id:'vs-embedding', name:'Embedding Info', method:'GET', path:'/api/vectorstore/embedding-info',
+        description:'Embed the given text and inspect the vector dimension and sample float values.',
+        fields:[{name:'text',label:'Text to Embed',type:'text',placeholder:'Hello world',default:'Hello world',loc:'query'}] }
+    ]
+  },
+  {
+    id:'chat-memory', label:'Chat Memory', badge:'Demo 4', color:'#a78bfa', icon:'💬', group:'demos',
+    description:'Multi-turn conversational RAG with per-session message history.',
+    endpoints:[
+      { id:'chat-sessions', name:'List Sessions', method:'GET', path:'/api/chat/sessions',
+        description:'Return the count and IDs of all active in-memory chat sessions.', fields:[] },
+      { id:'chat-rag', name:'Chat (RAG + Memory)', method:'POST', path:'/api/chat/{sessionId}',
+        description:'Send a message processed by both QuestionAnswerAdvisor (RAG) and MessageChatMemoryAdvisor (history).', slow:true,
+        fields:[
+          {name:'sessionId',label:'Session ID',type:'text',   placeholder:'session1',default:'session1',req:true,loc:'path'},
+          {name:'message',  label:'Message',   type:'textarea',placeholder:'What is Spring AI?',              req:true,loc:'body'}
+        ]},
+      { id:'chat-simple', name:'Chat (Memory Only)', method:'POST', path:'/api/chat/{sessionId}/simple',
+        description:'Memory-only advisor — no document retrieval. Demonstrates pronoun resolution across turns.', slow:true,
+        fields:[
+          {name:'sessionId',label:'Session ID',type:'text',   placeholder:'session1',default:'session1',req:true,loc:'path'},
+          {name:'message',  label:'Message',   type:'textarea',placeholder:'Hello, my name is Alice',         req:true,loc:'body'}
+        ]},
+      { id:'chat-clear', name:'Clear Session', method:'DELETE', path:'/api/chat/{sessionId}',
+        description:'Remove all stored messages for a session so subsequent messages start fresh.',
+        fields:[{name:'sessionId',label:'Session ID',type:'text',placeholder:'session1',default:'session1',req:true,loc:'path'}] }
+    ]
+  },
+  {
+    id:'advisors', label:'Advisors', badge:'Demo 5', color:'#fb923c', icon:'🛡️', group:'demos',
+    description:'Compose Spring AI advisors: QuestionAnswerAdvisor, SafeGuardAdvisor, and chained pipelines.',
+    endpoints:[
+      { id:'adv-custom', name:'Custom Retrieval', method:'POST', path:'/api/advisor/custom-retrieval',
+        description:'RAG with caller-supplied topK and similarity threshold, overriding the defaults.', slow:true,
+        fields:[
+          {name:'topK',     label:'Top K',              type:'number',default:3,  min:1,max:50,             loc:'query'},
+          {name:'threshold',label:'Threshold (0.0–1.0)',type:'number',default:0.5,min:0,max:1, step:0.05,  loc:'query'},
+          {name:'question', label:'Question',           type:'textarea',placeholder:'What vector stores are supported?',req:true,loc:'body'}
+        ]},
+      { id:'adv-safeguard', name:'SafeGuard', method:'POST', path:'/api/advisor/safeguard',
+        description:'RAG with content moderation — blocks prompts containing banned words/phrases.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'Tell me about Spring AI',req:true,loc:'body'}] },
+      { id:'adv-composed', name:'Composed Advisors', method:'POST', path:'/api/advisor/composed',
+        description:'Logging advisor → QuestionAnswerAdvisor → SafeGuardAdvisor applied in sequence.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'How does embedding work?',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'structured', label:'Structured Output', badge:'Demo 6', color:'#2dd4bf', icon:'📋', group:'demos',
+    description:'Parse LLM responses into typed Java records via BeanOutputConverter.',
+    endpoints:[
+      { id:'struct-faq', name:'Extract FAQ Entry', method:'POST', path:'/api/structured/faq',
+        description:'Extract a single FaqEntry {question, answer, category} from the LLM response.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'What pricing plans are available?',req:true,loc:'body'}] },
+      { id:'struct-legal', name:'Extract Legal Clauses', method:'POST', path:'/api/structured/legal',
+        description:'Search legal docs and structure results as LegalClause records (section, title, summary, relevance).', slow:true,
+        fields:[{name:'query',label:'Query',type:'textarea',placeholder:'data privacy and encryption',req:true,loc:'body'}] },
+      { id:'struct-api', name:'Extract API Endpoints', method:'POST', path:'/api/structured/api',
+        description:'Search tech docs and structure results as ApiEndpoint records (method, path, description, parameters).', slow:true,
+        fields:[{name:'query',label:'Query',type:'textarea',placeholder:'document management',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'function', label:'Function Calling', badge:'Demo 7', color:'#facc15', icon:'⚙️', group:'demos',
+    description:'LLM autonomously invokes registered tools during response generation.',
+    endpoints:[
+      { id:'fn-support', name:'Support Request', method:'POST', path:'/api/function/support',
+        description:'The LLM may autonomously call createSupportTicket() and include the ticket reference in its reply.',
+        slow:true, warning:'Multiple LLM round-trips involved. Allow 60–180 seconds on CPU.',
+        fields:[{name:'message',label:'Message',type:'textarea',placeholder:'My account is locked and I cannot reset my password',req:true,loc:'body'}] },
+      { id:'fn-ask', name:'Ask with Tools', method:'POST', path:'/api/function/ask',
+        description:'Ask with multiple tools available: knowledge-base search, ticket creation, and product lookup.',
+        slow:true, warning:'Multiple LLM round-trips involved. Allow 60–180 seconds on CPU.',
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'What features does the API support?',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'multidoc', label:'Multi-Doc RAG', badge:'Demo 8', color:'#fb7185', icon:'📚', group:'demos',
+    description:'Query independent document collections (FAQ, Legal, Tech, HR) with smart keyword routing.',
+    endpoints:[
+      { id:'md-collections', name:'List Collections', method:'GET', path:'/api/multidoc/collections',
+        description:'Return the four pre-configured in-memory document collections and their descriptions.', fields:[] },
+      { id:'md-query', name:'Query Collection', method:'POST', path:'/api/multidoc/query/{collection}',
+        description:'RAG query against one specific isolated in-memory vector store.', slow:true,
+        fields:[
+          {name:'collection',label:'Collection',type:'select',default:'faq',options:['faq','legal','tech','hr'],req:true,loc:'path'},
+          {name:'question',  label:'Question',  type:'textarea',placeholder:'What pricing plans are available?',req:true,loc:'body'}
+        ]},
+      { id:'md-smart', name:'Smart Query', method:'POST', path:'/api/multidoc/smart-query',
+        description:'Auto-routes the question to the most appropriate collection using keyword heuristics.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'What is the refund policy?',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'metadata', label:'Metadata Filtering', badge:'Demo 9', color:'#e879f9', icon:'🏷️', group:'demos',
+    description:'Filter vector similarity search by document metadata using FilterExpressionBuilder.',
+    endpoints:[
+      { id:'meta-product', name:'Search by Product', method:'GET', path:'/api/metadata/search/product',
+        description:'Vector search scoped to documents with a matching product metadata field.',
+        fields:[
+          {name:'query',  label:'Search Query',type:'text',placeholder:'new features',req:true,loc:'query'},
+          {name:'product',label:'Product',    type:'text',placeholder:'cloudflow',default:'cloudflow',loc:'query'}
+        ]},
+      { id:'meta-category', name:'Search by Category', method:'GET', path:'/api/metadata/search/category',
+        description:'Vector search scoped to documents with a matching category metadata field.',
+        fields:[
+          {name:'query',   label:'Search Query',type:'text',placeholder:'updates',     req:true,loc:'query'},
+          {name:'category',label:'Category',   type:'text',placeholder:'release-notes',default:'release-notes',loc:'query'}
+        ]},
+      { id:'meta-ask', name:'Ask About Product', method:'POST', path:'/api/metadata/ask',
+        description:'Full RAG pipeline — only retrieves chunks belonging to the specified product.', slow:true,
+        fields:[
+          {name:'question',label:'Question',type:'textarea',placeholder:'What new features were added?',req:true,loc:'body'},
+          {name:'product', label:'Product', type:'text',    placeholder:'cloudflow', default:'cloudflow', req:true, loc:'body'}
+        ]}
+    ]
+  },
+
+  // ── SCENARIOS ────────────────────────────────────────────────────────────
+  {
+    id:'support', label:'Customer Support', badge:'Scenario', color:'#38bdf8', icon:'🎧', group:'scenarios',
+    description:'FAQ-powered chatbot combining RAG, session memory, and automatic ticket creation.',
+    endpoints:[
+      { id:'sup-chat', name:'Send Message', method:'POST', path:'/api/scenarios/support/{sessionId}',
+        description:'Support bot with RAG + memory + tool use. The LLM may create a ticket automatically.', slow:true,
+        fields:[
+          {name:'sessionId',label:'Session ID',type:'text',   placeholder:'session1',default:'session1',req:true,loc:'path'},
+          {name:'message',  label:'Message',   type:'textarea',placeholder:'What pricing plans do you offer?',req:true,loc:'body'}
+        ]},
+      { id:'sup-end', name:'End Session', method:'DELETE', path:'/api/scenarios/support/{sessionId}',
+        description:'Clear all conversation history for the given session.',
+        fields:[{name:'sessionId',label:'Session ID',type:'text',placeholder:'session1',default:'session1',req:true,loc:'path'}] }
+    ]
+  },
+  {
+    id:'legal', label:'Legal Search', badge:'Scenario', color:'#94a3b8', icon:'⚖️', group:'scenarios',
+    description:'Legal clause search, structured extraction, and compliance assessment.',
+    endpoints:[
+      { id:'leg-search', name:'Search Clauses', method:'POST', path:'/api/scenarios/legal/search',
+        description:'RAG search over the Terms of Service — returns a free-text grounded answer.', slow:true,
+        fields:[{name:'query',label:'Query',type:'textarea',placeholder:'What are the data privacy terms?',req:true,loc:'body'}] },
+      { id:'leg-extract', name:'Extract Clauses', method:'POST', path:'/api/scenarios/legal/extract',
+        description:'Structure matching clauses as LegalClause records (section, title, summary, relevance).', slow:true,
+        fields:[{name:'query',label:'Query',type:'textarea',placeholder:'termination and cancellation',req:true,loc:'body'}] },
+      { id:'leg-compliance', name:'Compliance Check', method:'POST', path:'/api/scenarios/legal/compliance',
+        description:'Evaluate whether a described business practice complies with the Terms of Service.', slow:true,
+        fields:[{name:'practice',label:'Business Practice',type:'textarea',placeholder:'Sharing user data with third-party advertisers without consent',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'techdocs', label:'Tech Docs', badge:'Scenario', color:'#a3e635', icon:'📖', group:'scenarios',
+    description:'Technical documentation assistant: Q&A, endpoint discovery, and curl example generation.',
+    endpoints:[
+      { id:'td-ask', name:'Ask Tech Question', method:'POST', path:'/api/scenarios/techdocs/ask',
+        description:'RAG-powered Q&A over API documentation chunks.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'How do I authenticate with the API?',req:true,loc:'body'}] },
+      { id:'td-endpoints', name:'Find Endpoints', method:'POST', path:'/api/scenarios/techdocs/endpoints',
+        description:'Search API docs for endpoints related to a feature; returns structured ApiEndpoint records.', slow:true,
+        fields:[{name:'feature',label:'Feature',type:'text',placeholder:'document management',req:true,loc:'body'}] },
+      { id:'td-curl', name:'Generate curl', method:'POST', path:'/api/scenarios/techdocs/curl',
+        description:'Generate a ready-to-run curl command for the described API operation.', slow:true,
+        fields:[{name:'operation',label:'Operation',type:'text',placeholder:'upload a document to a workspace',req:true,loc:'body'}] }
+    ]
+  },
+  {
+    id:'hr', label:'HR Policy', badge:'Scenario', color:'#fbbf24', icon:'👥', group:'scenarios',
+    description:'Employee handbook assistant with session memory and structured policy retrieval.',
+    endpoints:[
+      { id:'hr-chat', name:'HR Chat', method:'POST', path:'/api/scenarios/hr/chat/{sessionId}',
+        description:'Multi-turn HR Q&A with QuestionAnswerAdvisor + MessageChatMemoryAdvisor.', slow:true,
+        fields:[
+          {name:'sessionId',label:'Session ID',type:'text',   placeholder:'emp123',default:'emp123',req:true,loc:'path'},
+          {name:'question', label:'Question',  type:'textarea',placeholder:'How many PTO days do I get in my first year?',req:true,loc:'body'}
+        ]},
+      { id:'hr-policy', name:'Get Policy Info', method:'POST', path:'/api/scenarios/hr/policy',
+        description:'Retrieve a structured PolicyInfo record (policyName, summary, eligibility, keyPoints).', slow:true,
+        fields:[{name:'topic',label:'Topic',type:'text',placeholder:'parental leave',req:true,loc:'body'}] },
+      { id:'hr-quick', name:'Quick Answer', method:'POST', path:'/api/scenarios/hr/quick',
+        description:'Single-turn stateless HR Q&A — no session state, fast lookup.', slow:true,
+        fields:[{name:'question',label:'Question',type:'textarea',placeholder:'What health insurance options are available?',req:true,loc:'body'}] }
+    ]
+  }
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════
+let currentModuleId = null;
+const abortControllers = {};  // epId -> AbortController
+const responseCache   = {};   // epId -> raw string (for clipboard)
+
+// ══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+function findModule(id)   { return MODULES.find(m => m.id === id); }
+function findEndpoint(id) { for (const m of MODULES) { const e = m.endpoints.find(ep => ep.id === id); if (e) return e; } return null; }
+
+const METHOD_CLS = {
+  GET:    'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
+  POST:   'bg-blue-500/15   text-blue-300   ring-1 ring-blue-500/30',
+  DELETE: 'bg-red-500/15    text-red-300    ring-1 ring-red-500/30',
+};
+
+function methodBadge(m) {
+  return `<span class="text-[10px] font-bold px-2 py-0.5 rounded font-mono ${METHOD_CLS[m] || 'bg-gray-500/20 text-gray-300'}">${m}</span>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function syntaxHighlight(json) {
+  let out = '', i = 0;
+  while (i < json.length) {
+    const ch = json[i];
+    if (ch === '"') {
+      let end = i + 1;
+      while (end < json.length) {
+        if (json[end] === '\\') { end += 2; continue; }
+        if (json[end] === '"') { end++; break; }
+        end++;
+      }
+      const raw = json.slice(i, end);
+      const isKey = json.slice(end).trimStart().startsWith(':');
+      const esc = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      out += `<span class="${isKey ? 'jk' : 'js'}">${esc}</span>`;
+      i = end;
+    } else if (ch === 't' && json.startsWith('true',  i)) { out += '<span class="jb">true</span>';  i += 4; }
+    else if   (ch === 'f' && json.startsWith('false', i)) { out += '<span class="jb">false</span>'; i += 5; }
+    else if   (ch === 'n' && json.startsWith('null',  i)) { out += '<span class="jz">null</span>';  i += 4; }
+    else if (ch === '-' || (ch >= '0' && ch <= '9')) {
+      let end = i;
+      while (end < json.length && /[-\d.eE+]/.test(json[end])) end++;
+      out += `<span class="jn">${json.slice(i, end)}</span>`;
+      i = end;
+    } else {
+      out += ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+function locBadge(loc) {
+  const cls = loc === 'body'  ? 'bg-blue-500/10   text-blue-400'
+            : loc === 'query' ? 'bg-emerald-500/10 text-emerald-400'
+            :                   'bg-orange-500/10  text-orange-400';
+  return `<span class="text-[9px] px-1 py-0.5 rounded font-mono ${cls}">${loc}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════════════
+function renderNav() {
+  const html = m => `
+    <button onclick="selectModule('${m.id}')" id="nav-${m.id}"
+      class="nav-item w-full text-left flex items-center gap-2.5 px-2.5 py-1.5 rounded-md"
+      style="--accent:${m.color}">
+      <span class="w-6 h-6 rounded shrink-0 flex items-center justify-center text-sm"
+            style="background:${m.color}22">${m.icon}</span>
+      <span class="flex-1 min-w-0 text-xs font-medium text-gray-300 truncate">${m.label}</span>
+      <span class="text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0"
+            style="background:${m.color}20;color:${m.color}">${m.badge}</span>
+    </button>`;
+  document.getElementById('nav-demos').innerHTML     = MODULES.filter(m => m.group === 'demos').map(html).join('');
+  document.getElementById('nav-scenarios').innerHTML = MODULES.filter(m => m.group === 'scenarios').map(html).join('');
+}
+
+function setNavActive(id) {
+  MODULES.forEach(m => {
+    const el = document.getElementById(`nav-${m.id}`);
+    if (el) el.classList.toggle('active', m.id === id);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// WELCOME SCREEN
+// ══════════════════════════════════════════════════════════════════════════
+function showWelcome() {
+  currentModuleId = null;
+  setNavActive(null);
+  const card = m => `
+    <button onclick="selectModule('${m.id}')"
+      class="text-left p-4 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/80 transition-all group">
+      <div class="flex items-start gap-3 mb-2.5">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl shrink-0 transition-transform group-hover:scale-110"
+             style="background:${m.color}18">${m.icon}</div>
+        <div class="flex-1 min-w-0 pt-0.5">
+          <div class="flex items-center gap-2 flex-wrap mb-0.5">
+            <span class="text-sm font-semibold text-white">${m.label}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background:${m.color}20;color:${m.color}">${m.badge}</span>
+          </div>
+          <div class="text-xs text-gray-500">${m.endpoints.length} endpoint${m.endpoints.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 leading-relaxed line-clamp-2">${m.description}</p>
+    </button>`;
+
+  document.getElementById('app').innerHTML = `
+    <div class="fade-in">
+      <!-- Hero -->
+      <div class="mb-10">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-2xl font-bold text-white shrink-0">AI</div>
+          <div>
+            <h1 class="text-3xl font-bold text-white">RAG Spring AI Playground</h1>
+            <p class="text-gray-400 mt-1">Interactive demos for Spring AI RAG patterns · Ollama + pgvector</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span class="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-500/20">Spring AI 1.1</span>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-300 ring-1 ring-violet-500/20">qwen3:4b via Ollama</span>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-teal-500/10   text-teal-300   ring-1 ring-teal-500/20">nomic-embed-text 768d</span>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-blue-500/10   text-blue-300   ring-1 ring-blue-500/20">PostgreSQL + pgvector</span>
+        </div>
+      </div>
+
+      <!-- Getting started tip -->
+      <div class="mb-8 flex items-start gap-3 bg-indigo-500/8 border border-indigo-500/20 rounded-xl px-4 py-3">
+        <span class="text-indigo-400 text-lg shrink-0">💡</span>
+        <p class="text-sm text-indigo-200/80 leading-relaxed">
+          <strong class="text-indigo-300">Getting started:</strong> Run
+          <code class="bg-indigo-500/20 px-1.5 py-0.5 rounded text-xs font-mono">Basic RAG → Ingest Documents</code> first to populate
+          the vector store, then try <code class="bg-indigo-500/20 px-1.5 py-0.5 rounded text-xs font-mono">Ask a Question</code>.
+          LLM responses may take <strong class="text-indigo-300">10–120 seconds</strong> on CPU.
+        </p>
+      </div>
+
+      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Demos</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+        ${MODULES.filter(m => m.group === 'demos').map(card).join('')}
+      </div>
+
+      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Scenarios</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        ${MODULES.filter(m => m.group === 'scenarios').map(card).join('')}
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MODULE VIEW
+// ══════════════════════════════════════════════════════════════════════════
+function selectModule(id) {
+  if (!id) { showWelcome(); return; }
+  currentModuleId = id;
+  setNavActive(id);
+  const m = findModule(id);
+  if (!m) return;
+
+  document.getElementById('app').innerHTML = `
+    <div class="fade-in">
+      <!-- Back + Module Header -->
+      <div class="mb-6">
+        <button onclick="showWelcome()"
+          class="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-3">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          All Modules
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0"
+               style="background:${m.color}18">${m.icon}</div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h1 class="text-xl font-bold text-white">${m.label}</h1>
+              <span class="text-xs px-2 py-0.5 rounded font-medium" style="background:${m.color}20;color:${m.color}">${m.badge}</span>
+            </div>
+            <p class="text-sm text-gray-400 mt-0.5">${m.description}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Endpoint Cards Grid -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        ${m.endpoints.map(ep => endpointCard(ep)).join('')}
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT CARD
+// ══════════════════════════════════════════════════════════════════════════
+function endpointCard(ep) {
+  const fields = ep.fields || [];
+  return `
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="px-4 py-3 border-b border-gray-800 flex items-start gap-3">
+        <div class="shrink-0 pt-0.5">${methodBadge(ep.method)}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-white text-sm leading-tight">${ep.name}</div>
+          <code class="text-xs text-gray-500 font-mono mt-0.5 block">${ep.path}</code>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="p-4 space-y-3 flex-1">
+        <p class="text-xs text-gray-400 leading-relaxed">${ep.description}</p>
+
+        ${ep.warning ? `
+        <div class="flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-2">
+          <span class="text-amber-400 shrink-0 mt-0.5">⚠️</span>
+          <p class="text-xs text-amber-300/80">${ep.warning}</p>
+        </div>` : ep.slow ? `
+        <div class="flex items-center gap-2 bg-yellow-500/8 border border-yellow-500/20 rounded-lg px-3 py-1.5">
+          <span class="text-yellow-400 text-xs">⏱</span>
+          <p class="text-xs text-yellow-300/70">LLM endpoint — response may take 10–120 seconds on CPU.</p>
+        </div>` : ''}
+
+        ${fields.map(f => fieldHtml(ep.id, f)).join('')}
+
+        <!-- Action row -->
+        <div class="flex items-center gap-3 pt-1">
+          <button id="ep-btn-${ep.id}" onclick="submitRequest('${ep.id}')"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            ${runIcon()} Run
+          </button>
+          <span id="ep-timer-${ep.id}" class="text-xs text-gray-600 font-mono tabular-nums"></span>
+        </div>
+      </div>
+
+      <!-- Response area (injected dynamically) -->
+      <div id="ep-resp-${ep.id}"></div>
+    </div>`;
+}
+
+function runIcon() {
+  return `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>`;
+}
+
+function spinIcon() {
+  return `<svg class="w-3.5 h-3.5 spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+  </svg>`;
+}
+
+function fieldHtml(epId, f) {
+  const id  = `ep-f-${epId}-${f.name}`;
+  const cls = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition';
+  let input;
+  if (f.type === 'textarea') {
+    input = `<textarea id="${id}" class="${cls}" placeholder="${escapeHtml(f.placeholder || '')}">${f.default !== undefined ? escapeHtml(String(f.default)) : ''}</textarea>`;
+  } else if (f.type === 'number') {
+    const extras = [f.min !== undefined ? `min="${f.min}"` : '', f.max !== undefined ? `max="${f.max}"` : '', f.step !== undefined ? `step="${f.step}"` : ''].filter(Boolean).join(' ');
+    input = `<input type="number" id="${id}" class="${cls}" value="${f.default !== undefined ? f.default : ''}" ${extras} />`;
+  } else if (f.type === 'select') {
+    const opts = (f.options || []).map(o => `<option value="${o}" ${o === f.default ? 'selected' : ''}>${o}</option>`).join('');
+    input = `<select id="${id}" class="${cls} cursor-pointer">${opts}</select>`;
+  } else {
+    input = `<input type="text" id="${id}" class="${cls}" value="${f.default !== undefined ? escapeHtml(String(f.default)) : ''}" placeholder="${escapeHtml(f.placeholder || '')}" />`;
+  }
+  return `
+    <div class="space-y-1">
+      <label for="${id}" class="flex items-center gap-1.5 text-xs font-medium text-gray-300">
+        ${escapeHtml(f.label)}
+        ${f.req ? '<span class="text-red-400">*</span>' : ''}
+        ${locBadge(f.loc)}
+      </label>
+      ${input}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// REQUEST EXECUTION
+// ══════════════════════════════════════════════════════════════════════════
+function getFormValues(ep) {
+  const vals = {};
+  for (const f of (ep.fields || [])) {
+    const el = document.getElementById(`ep-f-${ep.id}-${f.name}`);
+    vals[f.name] = el ? el.value : (f.default !== undefined ? String(f.default) : '');
+  }
+  return vals;
+}
+
+function buildFetch(ep, vals) {
+  let url = ep.path;
+  const qp   = new URLSearchParams();
+  const body = {};
+  let hasBody = false;
+
+  for (const f of (ep.fields || [])) {
+    let v = vals[f.name];
+    if (v === '' || v === undefined || v === null) v = f.default !== undefined ? f.default : null;
+    if (v === null || v === undefined || v === '') continue;
+    const typed = f.type === 'number' ? Number(v) : String(v);
+    if      (f.loc === 'path')  url = url.replace(`{${f.name}}`, encodeURIComponent(String(typed)));
+    else if (f.loc === 'query') qp.set(f.name, String(typed));
+    else if (f.loc === 'body')  { body[f.name] = typed; hasBody = true; }
+  }
+
+  const qs = qp.toString();
+  if (qs) url += '?' + qs;
+
+  const opts = { method: ep.method, headers: {} };
+  if (hasBody) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  return { url, opts };
+}
+
+async function submitRequest(epId) {
+  const ep = findEndpoint(epId);
+  if (!ep) return;
+
+  const { url, opts } = buildFetch(ep, getFormValues(ep));
+
+  // Cancel any in-flight request for this endpoint
+  if (abortControllers[epId]) abortControllers[epId].abort();
+  const ctrl = new AbortController();
+  abortControllers[epId] = ctrl;
+  opts.signal = ctrl.signal;
+
+  const btn     = document.getElementById(`ep-btn-${epId}`);
+  const timerEl = document.getElementById(`ep-timer-${epId}`);
+  const respEl  = document.getElementById(`ep-resp-${epId}`);
+
+  // Loading state
+  btn.disabled   = true;
+  btn.innerHTML  = `${spinIcon()} Running…`;
+  timerEl.textContent = '';
+  respEl.innerHTML = `
+    <div class="border-t border-gray-800 px-4 py-3 flex items-center gap-2 text-xs text-gray-500">
+      ${spinIcon()} <span>Waiting for response…</span>
+    </div>`;
+
+  const t0       = Date.now();
+  const interval = setInterval(() => {
+    timerEl.textContent = ((Date.now() - t0) / 1000).toFixed(1) + 's';
+  }, 100);
+
+  try {
+    const res     = await fetch(url, opts);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+    clearInterval(interval);
+    timerEl.textContent = elapsed + 's';
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+
+    const rawStr     = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    responseCache[epId] = rawStr;
+    const highlighted = typeof data === 'string' ? escapeHtml(data) : syntaxHighlight(rawStr);
+    const okCls       = res.ok
+      ? 'bg-emerald-500/15 text-emerald-300'
+      : 'bg-red-500/15 text-red-300';
+
+    respEl.innerHTML = `
+      <div class="border-t border-gray-800">
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-950/60">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded font-mono ${okCls}">${res.status} ${res.statusText}</span>
+            <span class="text-xs text-gray-500 font-mono">${elapsed}s</span>
+          </div>
+          <button id="ep-copy-${epId}" onclick="copyResponse('${epId}')"
+            class="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            Copy
+          </button>
+        </div>
+        <div class="px-4 pb-4 pt-2">
+          <pre class="bg-gray-950 rounded-lg p-3 text-xs mono overflow-x-auto max-h-80 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all">${highlighted}</pre>
+        </div>
+      </div>`;
+  } catch (err) {
+    clearInterval(interval);
+    timerEl.textContent = '';
+    if (err.name !== 'AbortError') {
+      respEl.innerHTML = `
+        <div class="border-t border-gray-800 px-4 py-3">
+          <div class="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+            <svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+              <div class="text-xs font-semibold text-red-400">Request Failed</div>
+              <div class="text-xs text-red-300/70 mt-0.5">${escapeHtml(err.message)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = `${runIcon()} Run`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CLIPBOARD
+// ══════════════════════════════════════════════════════════════════════════
+function copyResponse(epId) {
+  const text = responseCache[epId] || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(`ep-copy-${epId}`);
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = `
+      <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+      </svg> Copied!`;
+    btn.classList.add('text-emerald-400');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('text-emerald-400'); }, 1800);
+  }).catch(() => {/* ignore clipboard errors */});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+renderNav();
+showWelcome();
+</script>
+</body>
+</html>
+

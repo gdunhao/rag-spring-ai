@@ -1,9 +1,9 @@
 # RAG with Spring AI & Ollama — Comprehensive Demo Project
 
 <p align="center">
-  <img alt="Java 21" src="https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white">
-  <img alt="Spring Boot 3.4" src="https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot&logoColor=white">
-  <img alt="Spring AI 1.0" src="https://img.shields.io/badge/Spring_AI-1.0.0-6DB33F?logo=spring&logoColor=white">
+  <img alt="Java 25" src="https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white">
+  <img alt="Spring Boot 3.5" src="https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?logo=springboot&logoColor=white">
+  <img alt="Spring AI 1.1" src="https://img.shields.io/badge/Spring_AI-1.1.4-6DB33F?logo=spring&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/Ollama-qwen3:4b-black?logo=ollama&logoColor=white">
   <img alt="PostgreSQL + pgvector" src="https://img.shields.io/badge/PostgreSQL-16+pgvector-4169E1?logo=postgresql&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
@@ -22,7 +22,9 @@
 - [Quick Start](#-quick-start)
 - [Running Locally — Step by Step](#running-locally--step-by-step)
 - [Project Architecture](#️-project-architecture)
+- [Web Playground (Frontend)](#-web-playground-frontend)
 - [API Reference](#-api-reference)
+- [Swagger / OpenAPI Specification](#-swagger--openapi-specification)
 - [Configuration](#️-configuration)
 - [Makefile Reference](#️-makefile-reference)
 - [Testing](#-testing)
@@ -60,9 +62,9 @@
 
 | Layer | Technology | Version | Role |
 |-------|-----------|---------|------|
-| Language | Java | 21 (LTS) | Application runtime |
-| Framework | Spring Boot | 3.4.9 | Web + DI + auto-configuration |
-| AI Framework | Spring AI | 1.0.0 | LLM abstraction, RAG, advisors, tools |
+| Language | Java | 25 (LTS) | Application runtime |
+| Framework | Spring Boot | 3.5.13 | Web + DI + auto-configuration |
+| AI Framework | Spring AI | 1.1.4 | LLM abstraction, RAG, advisors, tools |
 | LLM / Embeddings | Ollama | latest | Local model server |
 | Chat model | Qwen 3 4B | `qwen3:4b` | Instruction-following, tool calling |
 | Embedding model | Nomic Embed Text | `nomic-embed-text` | 768-dim text embeddings |
@@ -79,7 +81,7 @@
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| **Java** | 21+ | Runtime (project targets Java 21) |
+| **Java** | 25+ | Runtime (project targets Java 25) |
 | **Docker & Docker Compose** | 24+ | Runs PostgreSQL + pgvector + Ollama |
 | **Git** | any | Clone the repo |
 | **make** *(optional)* | any | Convenience wrapper around Maven & Docker |
@@ -91,15 +93,15 @@
 
 ```bash
 java -version
-# Should print: openjdk version "21.x.x" or higher
+# Should print: openjdk version "25.x.x" or higher
 ```
 
-If you need Java 21, install it via [SDKMAN](https://sdkman.io/) (recommended) or [Adoptium](https://adoptium.net/):
+If you need Java 25, install it via [SDKMAN](https://sdkman.io/) (recommended) or [Adoptium](https://adoptium.net/):
 
 ```bash
-# SDKMAN
-sdk install java 21.0.3-tem
-sdk use java 21.0.3-tem
+# SDKMAN — check available Java 25 builds with: sdk list java
+sdk install java 25.0.2-tem
+sdk use java 25.0.2-tem
 ```
 
 ---
@@ -115,7 +117,10 @@ make setup
 # 2. Start the Spring Boot application
 make run
 
-# 3. Ingest documents, then test
+# 3. Open the interactive playground in your browser
+open http://localhost:8080
+
+# Or use curl directly:
 curl -s -X POST http://localhost:8080/api/basic/ingest | jq
 curl -s -X POST http://localhost:8080/api/basic/ask \
   -H "Content-Type: application/json" \
@@ -306,7 +311,164 @@ Each module follows the same pattern: `*Controller.java` handles HTTP and delega
 |-----------|-----------|------|
 | LLM / Embeddings | Ollama (`qwen3:4b`, `nomic-embed-text`) | 11434 |
 | Vector Store | PostgreSQL 16 + pgvector | 5432 |
-| Application | Spring Boot 3.4 + Spring AI 1.0 | 8080 |
+| Application + Web Playground | Spring Boot 3.5 + Spring AI 1.1 | 8080 |
+
+---
+
+## 🖥 Web Playground (Frontend)
+
+A fully interactive, browser-based playground is bundled with the application and served directly by Spring Boot — no separate build step or Node.js runtime required.
+
+### Accessing the UI
+
+Once the application is running, open your browser at:
+
+```
+http://localhost:8080
+```
+
+That's it. The playground is served as a static file from `src/main/resources/static/index.html`.
+
+### What it looks like
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+mindmap
+  root((🤖 RAG Spring AI<br/>Playground))
+    🗂️ Sidebar
+      📌 Demos
+        🔍 Basic RAG — Demo 1
+        📄 Doc Ingestion — Demo 2
+        🗄️ Vector Store — Demo 3
+        💬 Chat Memory — Demo 4
+        🛡️ Advisors — Demo 5
+        📋 Structured Output — Demo 6
+        ⚙️ Function Calling — Demo 7
+        📚 Multi-Doc RAG — Demo 8
+        🏷️ Metadata Filtering — Demo 9
+      🌍 Scenarios
+        🎧 Customer Support
+        ⚖️ Legal Search
+        📖 Tech Docs
+        👥 HR Policy
+    📋 Main Panel
+      🏠 Welcome Screen
+        Module cards grid — 3 columns
+        Click any card to open a module
+      📦 Module View
+        Endpoint cards — up to 2 per row
+        Method badge · API path · Description
+        Form fields — body · query · path params
+        ▶ Run button · live elapsed timer
+        Syntax-highlighted JSON response
+        HTTP status code · Copy to clipboard
+```
+
+### Features
+
+| Feature | Details |
+|---------|---------|
+| **13 modules in one UI** | All 9 capability demos and all 4 real-world scenarios accessible from the sidebar |
+| **35+ ready-to-fire endpoints** | Every API endpoint is mapped to a form card with labeled, pre-filled inputs |
+| **Smart form fields** | `body`, `query`, and `path` parameters are clearly labelled; required fields are marked with `*` |
+| **Method badges** | `GET` / `POST` / `DELETE` are colour-coded for instant recognition |
+| **One-click execution** | Click **▶ Run** — the UI builds the `fetch` request (URL, query string, JSON body) and fires it |
+| **Live timer** | A running counter shows how long the request has been in-flight (useful for slow LLM endpoints) |
+| **Syntax-highlighted response** | JSON keys, strings, numbers, booleans, and `null` are rendered in distinct colours |
+| **HTTP status indicator** | `200 OK` shown in green; error codes in red, alongside the total elapsed time |
+| **Copy to clipboard** | One-click copy of the raw response JSON |
+| **Slow-endpoint warnings** | LLM-heavy endpoints display a `⏱` notice; function-calling endpoints show an explicit `⚠️` warning |
+| **Zero external runtime** | Pure HTML + vanilla JS + Tailwind CSS CDN — no npm, no build step, no framework |
+
+### Recommended workflow
+
+```
+1. Start infrastructure and the application
+   make setup && make run
+
+2. Open the playground
+   http://localhost:8080
+
+3. Ingest documents (sidebar → Basic RAG → Ingest Documents → ▶ Run)
+
+4. Ask your first question
+   Basic RAG → Ask a Question → type a question → ▶ Run
+
+5. Explore other demos and scenarios from the sidebar
+```
+
+### Navigation
+
+| UI Element | Purpose |
+|------------|---------|
+| **Sidebar — Demos section** | Jump directly to any of the 9 capability demos |
+| **Sidebar — Scenarios section** | Jump directly to any of the 4 real-world scenario modules |
+| **Welcome grid** | Click any card on the home screen to open the corresponding module |
+| **← All Modules** | Back button inside every module view returns to the welcome screen |
+
+### Endpoint card anatomy
+
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TB
+    subgraph CARD["🃏  Endpoint Card"]
+        direction TB
+        HEADER["POST  ·  Ask a Question\n/api/basic/ask"]
+        DESCR["RAG-powered question answering\ngrounded in retrieved document chunks"]
+        NOTICE["⏱  LLM endpoint\nResponse may take 10–120 s on CPU"]
+        FIELD["Question *  body\n──────────────────────────────\nWhat is RAG and how does it work?"]
+        ACTION["▶  Run                        3.42 s"]
+        RESULT["200 OK  ·  3.42 s  ·  Copy\n──────────────────────────────\n{ answer: RAG stands for…\n  sources: [ … ] }"]
+        HEADER --> DESCR --> NOTICE --> FIELD --> ACTION --> RESULT
+    end
+
+    style CARD   fill:#111827,stroke:#374151,color:#e0e0e0
+    style HEADER fill:#1e2d4a,stroke:#3b82f6,color:#93c5fd
+    style DESCR  fill:#0d1b2a,stroke:#374151,color:#9ca3af
+    style NOTICE fill:#1c1a00,stroke:#ca8a04,color:#fde68a
+    style FIELD  fill:#111827,stroke:#4b5563,color:#e0e0e0
+    style ACTION fill:#1e1b4b,stroke:#6366f1,color:#c7d2fe
+    style RESULT fill:#052e16,stroke:#16a34a,color:#86efac
+```
+
+### Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Markup | Semantic HTML5 (`index.html` served by Spring Boot static resource handler) |
+| Styling | [Tailwind CSS](https://tailwindcss.com/) via CDN — no build required |
+| Typography | [Inter](https://fonts.google.com/specimen/Inter) + [JetBrains Mono](https://www.jetbrains.com/legalnotice/fonts/) via Google Fonts |
+| Logic | Vanilla JavaScript (ES2020+) — no framework, no npm |
+| HTTP | Native `fetch` API with `AbortController` for in-flight cancellation |
+| JSON rendering | Custom syntax-highlighter (pure JS, zero dependencies) |
+
+### Extending the playground
+
+To add a new endpoint to the UI, edit the `MODULES` array at the top of `src/main/resources/static/index.html`:
+
+```js
+// Inside the relevant module object, add an entry to endpoints[]:
+{
+  id: 'my-endpoint',
+  name: 'My New Endpoint',
+  method: 'POST',
+  path: '/api/mymodule/action',
+  description: 'Short description shown under the endpoint name.',
+  slow: true,                          // shows the ⏱ notice
+  fields: [
+    { name: 'query', label: 'Query', type: 'textarea',
+      placeholder: 'Enter your query', req: true, loc: 'body' }
+  ]
+}
+```
+
+| Field property | Values | Description |
+|----------------|--------|-------------|
+| `loc` | `body` · `query` · `path` | Where the value goes in the request |
+| `type` | `text` · `textarea` · `number` · `select` | Input widget to render |
+| `req` | `true` / `false` | Marks the field with a red `*` |
+| `slow` | `true` / `false` | Adds the ⏱ LLM-latency notice |
+| `warning` | string | Adds an amber ⚠️ warning box |
 
 ---
 
@@ -560,6 +722,53 @@ curl -s -X POST http://localhost:8080/api/scenarios/hr/quick \
   -H "Content-Type: application/json" \
   -d '{"question": "What health insurance options are available?"}' | jq
 ```
+
+---
+
+## 📄 Swagger / OpenAPI Specification
+
+A complete **OpenAPI 3.0** document covering every endpoint in this project is available at:
+
+> **[`openapi.yaml`](openapi.yaml)**
+
+It describes all 13 modules × their endpoints, request/response schemas, path/query parameters, default values, validation constraints, and worked examples — following [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3) best practices.
+
+### View interactively with Swagger UI
+
+Paste the raw file URL (or its contents) into the **[Swagger Editor](https://editor.swagger.io/)** online, or serve it locally:
+
+```bash
+# Option A — Docker (one-liner)
+docker run -p 8081:8080 \
+  -e SWAGGER_JSON=/openapi.yaml \
+  -v "$(pwd)/openapi.yaml:/openapi.yaml" \
+  swaggerapi/swagger-ui
+
+# Then open http://localhost:8081
+```
+
+```bash
+# Option B — Node.js / npx
+npx @stoplight/spectral-cli lint openapi.yaml   # validate
+```
+
+### Highlights
+
+| # | Tag | Endpoints | Key schemas |
+|---|-----|-----------|-------------|
+| 1 | `basic-rag` | `POST /api/basic/ask`, `POST /api/basic/ingest` | `QuestionRequest`, `QuestionAnswerResponse` |
+| 2 | `document-ingestion` | `POST /api/ingest/{text,json,custom-chunking}` | `IngestionResult`, `CustomChunkingResult` |
+| 3 | `vector-store` | `POST /api/vectorstore/add-samples`, `GET /api/vectorstore/{search,search-threshold,embedding-info}` | `VectorSearchResult`, `EmbeddingInfoResult` |
+| 4 | `chat-memory` | `POST/DELETE /api/chat/{sessionId}`, `POST /api/chat/{sessionId}/simple`, `GET /api/chat/sessions` | `MessageRequest`, `ChatResponse`, `SessionInfoResult` |
+| 5 | `advisors` | `POST /api/advisor/{custom-retrieval,safeguard,composed}` | `QuestionRequest`, `QuestionAnswerResponse` |
+| 6 | `structured-output` | `POST /api/structured/{faq,legal,api}` | `FaqEntry`, `LegalClause`, `ApiEndpoint` |
+| 7 | `function-calling` | `POST /api/function/{support,ask}` | `MessageRequest`, `MessageResponseBody` |
+| 8 | `multi-document-rag` | `GET /api/multidoc/collections`, `POST /api/multidoc/{query/{collection},smart-query}` | `CollectionItem`, `SmartQueryResponse` |
+| 9 | `metadata-filtering` | `GET /api/metadata/search/{product,category}`, `POST /api/metadata/ask` | `ProductQuestionRequest`, `VectorSearchResult` |
+| — | `customer-support` | `POST/DELETE /api/scenarios/support/{sessionId}` | `SupportChatResponse` |
+| — | `legal-search` | `POST /api/scenarios/legal/{search,extract,compliance}` | `LegalClause`, `ComplianceRequest` |
+| — | `tech-docs` | `POST /api/scenarios/techdocs/{ask,endpoints,curl}` | `ApiEndpoint`, `FeatureRequest`, `OperationRequest` |
+| — | `hr-policy` | `POST /api/scenarios/hr/{chat/{sessionId},policy,quick}` | `PolicyInfo`, `TopicRequest`, `HrChatResponse` |
 
 ---
 

@@ -33,7 +33,7 @@ BeanOutputConverter.parse(json) → Java Record
 
 ```java
 FaqEntry faq = client.prompt()
-    .advisors(new QuestionAnswerAdvisor(vectorStore, SearchRequest.defaults()))
+    .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
     .user("What pricing plans are available?")
     .call()
     .entity(FaqEntry.class);  // ← Magic happens here

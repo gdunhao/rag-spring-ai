@@ -82,7 +82,7 @@ public class CustomerSupportService {
         reader.getCustomMetadata().put("type", "faq");
         List<Document> chunks = new TokenTextSplitter().apply(reader.get());
         faqStore.add(chunks);
-        this.faqAdvisor = new QuestionAnswerAdvisor(faqStore);
+        this.faqAdvisor = QuestionAnswerAdvisor.builder(faqStore).build();
     }
 
     /**

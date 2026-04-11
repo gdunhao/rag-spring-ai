@@ -33,10 +33,12 @@ User Query ──▶ │  terms-of-service   │ ──▶ Route to best store �
 
 ### Creating Separate Stores
 
+Each collection gets its own `SimpleVectorStore` populated at startup via `@PostConstruct`, and a pre-built `QuestionAnswerAdvisor` is cached for it — avoiding advisor re-creation on every request:
+
 ```java
 // Each collection gets its own SimpleVectorStore
 private VectorStore createAndIngest(Resource resource, String source, String collection) {
-    SimpleVectorStore store = new SimpleVectorStore(embeddingModel);
+    SimpleVectorStore store = SimpleVectorStore.builder(embeddingModel).build();
     var reader = new TextReader(resource);
     reader.getCustomMetadata().put("source", source);
     reader.getCustomMetadata().put("collection", collection);
@@ -49,16 +51,16 @@ private VectorStore createAndIngest(Resource resource, String source, String col
 ### Targeted Queries
 
 ```java
-VectorStore store = switch (collection) {
-    case "faq"   -> faqStore;
-    case "legal" -> legalStore;
-    case "tech"  -> techStore;
-    case "hr"    -> hrStore;
+QuestionAnswerAdvisor advisor = switch (collection) {
+    case "faq"   -> faqAdvisor;
+    case "legal" -> legalAdvisor;
+    case "tech"  -> techAdvisor;
+    case "hr"    -> hrAdvisor;
     default -> throw new IllegalArgumentException("Unknown: " + collection);
 };
 
 client.prompt()
-    .advisors(new QuestionAnswerAdvisor(store, SearchRequest.defaults()))
+    .advisors(advisor)
     .user(question)
     .call()
     .content();

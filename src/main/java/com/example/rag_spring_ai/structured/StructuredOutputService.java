@@ -45,7 +45,7 @@ public class StructuredOutputService {
                         You are an FAQ specialist. Based on the retrieved context, create a
                         structured FAQ entry with the question, a clear answer, and the category.
                         """)
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .user(question)
                 .call()
                 .entity(FaqEntry.class);
@@ -61,7 +61,7 @@ public class StructuredOutputService {
                         extract relevant legal clauses. Return a list of clauses with their
                         section, title, summary, and relevance level (HIGH, MEDIUM, LOW).
                         """)
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .user("Find clauses related to: " + query)
                 .call()
                 .entity(new ParameterizedTypeReference<List<LegalClause>>() {});
@@ -77,7 +77,7 @@ public class StructuredOutputService {
                         extract the relevant API endpoints. For each endpoint, provide the
                         HTTP method, path, description, and parameters.
                         """)
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .user("Find API endpoints related to: " + query)
                 .call()
                 .entity(new ParameterizedTypeReference<List<ApiEndpoint>>() {});

@@ -100,7 +100,13 @@ public class IngestionService {
         reader.getCustomMetadata().put("chunking", "custom");
 
         List<Document> documents = reader.get();
-        var splitter = new TokenTextSplitter(chunkSize, minChunkSize, 5, 100, true);
+        var splitter = TokenTextSplitter.builder()
+                .withChunkSize(chunkSize)
+                .withMinChunkSizeChars(minChunkSize)
+                .withMinChunkLengthToEmbed(5)
+                .withMaxNumChunks(100)
+                .withKeepSeparator(true)
+                .build();
         List<Document> chunks = splitter.apply(documents);
         vectorStore.add(chunks);
 

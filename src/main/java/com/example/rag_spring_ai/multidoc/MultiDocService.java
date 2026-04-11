@@ -81,7 +81,7 @@ public class MultiDocService {
     }
 
     private QuestionAnswerAdvisor advisorFor(VectorStore store) {
-        return new QuestionAnswerAdvisor(store);
+        return QuestionAnswerAdvisor.builder(store).build();
     }
 
     /**

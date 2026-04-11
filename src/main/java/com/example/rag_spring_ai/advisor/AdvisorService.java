@@ -76,7 +76,7 @@ public class AdvisorService {
                 .system("You are a helpful assistant.")
                 .advisors(
                         new SafeGuardAdvisor(bannedWords),
-                        new QuestionAnswerAdvisor(vectorStore)
+                        QuestionAnswerAdvisor.builder(vectorStore).build()
                 )
                 .user(question)
                 .call()
@@ -111,7 +111,7 @@ public class AdvisorService {
                         """)
                 .advisors(
                         new SafeGuardAdvisor(bannedWords),
-                        new QuestionAnswerAdvisor(vectorStore)
+                        QuestionAnswerAdvisor.builder(vectorStore).build()
                 )
                 .user(question)
                 .call()

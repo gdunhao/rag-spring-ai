@@ -71,7 +71,7 @@ public class BasicRagService {
         ingestDocuments();
 
         return chatClient.prompt()
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .user(question)
                 .call()
                 .content();

@@ -63,10 +63,16 @@ public class HrPolicyService {
         var reader = new TextReader(hrDocument);
         reader.getCustomMetadata().put("source", "hr-policies");
         reader.getCustomMetadata().put("type", "hr");
-        var splitter = new TokenTextSplitter(500, 50, 5, 100, true);
+        var splitter = TokenTextSplitter.builder()
+                .withChunkSize(500)
+                .withMinChunkSizeChars(50)
+                .withMinChunkLengthToEmbed(5)
+                .withMaxNumChunks(100)
+                .withKeepSeparator(true)
+                .build();
         List<Document> chunks = splitter.apply(reader.get());
         hrStore.add(chunks);
-        this.hrAdvisor = new QuestionAnswerAdvisor(hrStore);
+        this.hrAdvisor = QuestionAnswerAdvisor.builder(hrStore).build();
     }
 
     /**

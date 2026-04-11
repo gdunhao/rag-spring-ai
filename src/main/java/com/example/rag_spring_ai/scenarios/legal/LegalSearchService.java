@@ -57,10 +57,16 @@ public class LegalSearchService {
         reader.getCustomMetadata().put("source", "terms-of-service");
         reader.getCustomMetadata().put("documentType", "legal");
         // Smaller chunks for legal docs — more precise clause matching
-        var splitter = new TokenTextSplitter(400, 50, 5, 100, true);
+        var splitter = TokenTextSplitter.builder()
+                .withChunkSize(400)
+                .withMinChunkSizeChars(50)
+                .withMinChunkLengthToEmbed(5)
+                .withMaxNumChunks(100)
+                .withKeepSeparator(true)
+                .build();
         List<Document> chunks = splitter.apply(reader.get());
         legalStore.add(chunks);
-        this.legalAdvisor = new QuestionAnswerAdvisor(legalStore);
+        this.legalAdvisor = QuestionAnswerAdvisor.builder(legalStore).build();
     }
 
     /**

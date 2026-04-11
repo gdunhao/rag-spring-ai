@@ -28,11 +28,14 @@ The `MessageChatMemoryAdvisor` automatically:
 
 ## Spring AI Components
 
-### `InMemoryChatMemory`
+### `InMemoryChatMemoryRepository` + `MessageWindowChatMemory`
 Stores conversation history in memory. Simple, but lost on restart.
 
 ```java
-ChatMemory memory = new InMemoryChatMemory();
+InMemoryChatMemoryRepository memoryRepository = new InMemoryChatMemoryRepository();
+ChatMemory chatMemory = MessageWindowChatMemory.builder()
+    .chatMemoryRepository(memoryRepository)
+    .build();
 ```
 
 ### `MessageChatMemoryAdvisor`
@@ -40,7 +43,7 @@ An advisor that integrates chat memory into the ChatClient pipeline.
 
 ```java
 ChatClient client = chatClientBuilder
-    .defaultAdvisors(new MessageChatMemoryAdvisor(memory))
+    .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
     .build();
 ```
 
@@ -49,25 +52,39 @@ ChatClient client = chatClientBuilder
 The power comes from combining memory with RAG:
 
 ```java
+// Build the client once with the memory advisor as a default
 ChatClient client = chatClientBuilder
-    .defaultAdvisors(
-        new MessageChatMemoryAdvisor(memory),        // Remember conversation
-        new QuestionAnswerAdvisor(vectorStore, ...)   // Retrieve documents
-    )
+    .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
     .build();
+
+// Pass the session ID at call time via an advisor parameter
+client.prompt()
+    .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
+    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+    .user(message)
+    .call()
+    .content();
 ```
 
 Now the system can handle follow-up questions that reference both the conversation history AND the document knowledge base.
 
 ## Session Management
 
-Each user/conversation gets its own `ChatMemory` instance, identified by a session ID:
+Each conversation is identified by a session ID. A single shared `ChatMemory` instance backs all sessions — the session ID is passed at call time as an advisor parameter:
 
 ```java
-Map<String, ChatMemory> sessions = new ConcurrentHashMap<>();
+// In the constructor (once):
+InMemoryChatMemoryRepository memoryRepository = new InMemoryChatMemoryRepository();
+ChatMemory chatMemory = MessageWindowChatMemory.builder()
+    .chatMemoryRepository(memoryRepository)
+    .build();
 
-ChatMemory memory = sessions.computeIfAbsent(sessionId,
-    k -> new InMemoryChatMemory());
+// At call time — session ID selects the correct conversation slice:
+client.prompt()
+    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+    .user(message)
+    .call()
+    .content();
 ```
 
 ## API Endpoints
@@ -124,9 +141,9 @@ curl http://localhost:8080/api/chat/sessions
 
 | Aspect | Demo | Production |
 |--------|------|------------|
-| Memory Store | `InMemoryChatMemory` | Redis, database, or `CassandraChatMemory` |
+| Memory Store | `MessageWindowChatMemory` + `InMemoryChatMemoryRepository` | Redis, database, or `CassandraChatMemory` |
 | Session ID | Manual path param | JWT token or session cookie |
-| Memory Limit | Unlimited | Limit to last N messages to control costs |
+| Memory Limit | `MessageWindowChatMemory` defaults to last 20 messages | Tune `maxMessages` to control cost |
 | Persistence | Lost on restart | Persistent store with TTL |
 
 ## Source Files
