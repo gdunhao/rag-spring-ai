@@ -20,17 +20,18 @@ The core RAG advisor. It:
 4. The LLM generates an answer grounded in that context
 
 ```java
-new QuestionAnswerAdvisor(vectorStore, SearchRequest.defaults())
+QuestionAnswerAdvisor.builder(vectorStore).build()
 ```
 
 **Customizable search parameters:**
 
 ```java
-SearchRequest searchRequest = SearchRequest.query(question)
-    .withTopK(5)                    // Return top 5 results
-    .withSimilarityThreshold(0.7);  // Minimum similarity score
+SearchRequest searchRequest = SearchRequest.builder()
+    .topK(5)                        // Return top 5 results
+    .similarityThreshold(0.7)       // Minimum similarity score
+    .build();
 
-new QuestionAnswerAdvisor(vectorStore, searchRequest)
+QuestionAnswerAdvisor.builder(vectorStore).searchRequest(searchRequest).build()
 ```
 
 ### 2. `SafeGuardAdvisor` (Content Moderation)
@@ -42,7 +43,7 @@ List<String> bannedWords = List.of("hack", "exploit", "injection");
 new SafeGuardAdvisor(bannedWords)
 ```
 
-If a banned word is detected, the advisor throws an exception, preventing the LLM call entirely. This is a simple but effective first layer of content moderation.
+If a banned word is detected, the advisor returns a fixed "I'm unable to respond to that due to sensitive content" message as the response, preventing any LLM call from being made. This is a simple but effective first layer of content moderation.
 
 ### 3. `MessageChatMemoryAdvisor` (Conversation History)
 
@@ -55,10 +56,11 @@ Advisors execute in the order they're added. Order matters!
 ```java
 client.prompt()
     .advisors(
-        new SafeGuardAdvisor(bannedWords),      // 1st: Block bad input
-        new MessageChatMemoryAdvisor(memory),    // 2nd: Load memory
-        new QuestionAnswerAdvisor(vectorStore, req) // 3rd: Retrieve docs
+        new SafeGuardAdvisor(bannedWords),                    // 1st: Block bad input
+        MessageChatMemoryAdvisor.builder(chatMemory).build(), // 2nd: Load memory
+        QuestionAnswerAdvisor.builder(vectorStore).build()    // 3rd: Retrieve docs
     )
+    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
     .user(question)
     .call()
     .content();

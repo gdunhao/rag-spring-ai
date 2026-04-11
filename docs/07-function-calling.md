@@ -89,8 +89,8 @@ This is where things get powerful. The LLM can:
 
 ```java
 client.prompt()
-    .advisors(new QuestionAnswerAdvisor(vectorStore))   // RAG
-    .tools(supportTools)                                 // Tool use
+    .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())  // RAG
+    .tools(supportTools)                                            // Tool use
     .user("My account is locked and I need help")
     .call()
     .content();

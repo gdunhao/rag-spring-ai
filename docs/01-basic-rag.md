@@ -62,8 +62,8 @@ The magic of Spring AI — this advisor automatically:
 4. Passes everything to the LLM
 
 ```java
-client.prompt()
-    .advisors(new QuestionAnswerAdvisor(vectorStore, SearchRequest.defaults()))
+chatClient.prompt()
+    .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
     .user(question)
     .call()
     .content();

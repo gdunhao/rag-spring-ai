@@ -24,7 +24,7 @@ This demo uses `SimpleVectorStore` — Spring AI's in-memory vector store. It's 
 ```java
 @Bean
 public VectorStore vectorStore(EmbeddingModel embeddingModel) {
-    return new SimpleVectorStore(embeddingModel);
+    return SimpleVectorStore.builder(embeddingModel).build();
 }
 ```
 
@@ -56,8 +56,10 @@ vectorStore.add(List.of(
 ```java
 // Find the 3 most similar documents to the query
 List<Document> results = vectorStore.similaritySearch(
-    SearchRequest.query("What programming language should I learn?")
-        .withTopK(3)
+    SearchRequest.builder()
+        .query("What programming language should I learn?")
+        .topK(3)
+        .build()
 );
 ```
 
@@ -66,9 +68,11 @@ List<Document> results = vectorStore.similaritySearch(
 ```java
 // Only return documents with similarity score >= 0.7
 List<Document> results = vectorStore.similaritySearch(
-    SearchRequest.query("container orchestration")
-        .withTopK(10)
-        .withSimilarityThreshold(0.7)
+    SearchRequest.builder()
+        .query("container orchestration")
+        .topK(10)
+        .similarityThreshold(0.7)
+        .build()
 );
 ```
 

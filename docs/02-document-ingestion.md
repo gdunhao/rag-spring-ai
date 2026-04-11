@@ -73,13 +73,13 @@ List<Document> docs = reader.get();
 ### `TokenTextSplitter` Parameters
 
 ```java
-new TokenTextSplitter(
-    800,   // defaultChunkSize — target tokens per chunk
-    350,   // minChunkSizeChars — minimum chunk size in characters
-    5,     // minChunkLengthToEmbed — skip very short chunks
-    100,   // maxNumChunks — maximum chunks per document
-    true   // keepSeparator — preserve paragraph separators
-);
+TokenTextSplitter.builder()
+    .withChunkSize(800)            // target tokens per chunk
+    .withMinChunkSizeChars(350)    // minimum chunk size in characters
+    .withMinChunkLengthToEmbed(5)  // skip very short chunks
+    .withMaxNumChunks(100)         // maximum chunks per document
+    .withKeepSeparator(true)       // preserve paragraph separators
+    .build();
 ```
 
 ### Chunking Guidelines

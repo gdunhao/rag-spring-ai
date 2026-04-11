@@ -41,7 +41,13 @@ Legal documents require **smaller chunks** (300-500 tokens) because:
 - Subsections often have independent legal significance
 
 ```java
-var splitter = new TokenTextSplitter(400, 50, 5, 100, true);
+var splitter = TokenTextSplitter.builder()
+    .withChunkSize(400)
+    .withMinChunkSizeChars(50)
+    .withMinChunkLengthToEmbed(5)
+    .withMaxNumChunks(100)
+    .withKeepSeparator(true)
+    .build();
 ```
 
 ### Specialized System Prompts

@@ -56,25 +56,25 @@ b.gte("year", 2025).build()  // year >= 2025
 var filterBuilder = new FilterExpressionBuilder();
 
 List<Document> results = vectorStore.similaritySearch(
-    SearchRequest.query("What new features were added?")
-        .withTopK(5)
-        .withFilterExpression(
-            filterBuilder.eq("product", "cloudflow").build()
-        )
+    SearchRequest.builder()
+        .query("What new features were added?")
+        .topK(5)
+        .filterExpression(filterBuilder.eq("product", "cloudflow").build())
+        .build()
 );
 ```
 
 ## Using Filters with RAG
 
 ```java
-SearchRequest searchRequest = SearchRequest.query(question)
-    .withTopK(3)
-    .withFilterExpression(
-        filterBuilder.eq("product", "cloudflow").build()
-    );
+var filterBuilder = new FilterExpressionBuilder();
+SearchRequest searchRequest = SearchRequest.builder()
+    .topK(3)
+    .filterExpression(filterBuilder.eq("product", "cloudflow").build())
+    .build();
 
 client.prompt()
-    .advisors(new QuestionAnswerAdvisor(vectorStore, searchRequest))
+    .advisors(QuestionAnswerAdvisor.builder(vectorStore).searchRequest(searchRequest).build())
     .user(question)
     .call()
     .content();
