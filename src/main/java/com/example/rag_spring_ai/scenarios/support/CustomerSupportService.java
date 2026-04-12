@@ -1,8 +1,11 @@
 package com.example.rag_spring_ai.scenarios.support;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.example.rag_spring_ai.function.FunctionConfig;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
@@ -33,6 +36,8 @@ import java.util.Map;
  */
 @Service
 public class CustomerSupportService {
+
+    private static final Logger log = LoggerFactory.getLogger(CustomerSupportService.class);
 
     private final ChatClient chatClient;
     private final EmbeddingModel embeddingModel;
@@ -70,18 +75,26 @@ public class CustomerSupportService {
                         Remember the conversation history to provide continuity.
                         Always sign off as "CloudFlow Support Team".
                         """)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new SimpleLoggerAdvisor()
+                )
                 .build();
+        log.info("[Memory]    CustomerSupportService initialised | store=InMemoryChatMemoryRepository | tools=SupportTools");
     }
 
     @PostConstruct
     public void init() {
+        log.info("[INGESTION] Loading customer FAQ | source=customer-faq.txt");
         VectorStore faqStore = SimpleVectorStore.builder(embeddingModel).build();
         var reader = new TextReader(faqDocument);
         reader.getCustomMetadata().put("source", "customer-faq");
         reader.getCustomMetadata().put("type", "faq");
         List<Document> chunks = new TokenTextSplitter().apply(reader.get());
+        log.info("[→VectorDB] Storing {} FAQ chunks (in-memory)", chunks.size());
+        long t0 = System.currentTimeMillis();
         faqStore.add(chunks);
+        log.info("[←VectorDB] FAQ store ready | chunks={} | elapsed={}ms", chunks.size(), System.currentTimeMillis() - t0);
         this.faqAdvisor = QuestionAnswerAdvisor.builder(faqStore).build();
     }
 
@@ -90,6 +103,11 @@ public class CustomerSupportService {
      * The conversation ID is passed as an advisor param — no new ChatClient per request.
      */
     public Map<String, String> handleMessage(String sessionId, String message) {
+        log.info("[Memory]    Support session | sessionId={} | message='{}'", sessionId, message);
+        log.info("[→VectorDB] Similarity search | collection=customer-faq | sessionId={}", sessionId);
+        log.info("[→Ollama]   Chat request (Support+Memory+Tools) | model=qwen3:4b | sessionId={}", sessionId);
+        long t0 = System.currentTimeMillis();
+
         String response = chatClient.prompt()
                 .advisors(faqAdvisor)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
@@ -98,6 +116,8 @@ public class CustomerSupportService {
                 .call()
                 .content();
 
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms | sessionId={}",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0, sessionId);
         return Map.of("sessionId", sessionId, "message", message, "response", response);
     }
 
@@ -106,5 +126,6 @@ public class CustomerSupportService {
      */
     public void endSession(String sessionId) {
         chatMemory.clear(sessionId);
+        log.info("[Memory]    Session ENDED | sessionId={}", sessionId);
     }
 }

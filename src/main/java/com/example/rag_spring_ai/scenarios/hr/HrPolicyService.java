@@ -1,8 +1,11 @@
 package com.example.rag_spring_ai.scenarios.hr;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.example.rag_spring_ai.model.PolicyInfo;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
@@ -35,6 +38,8 @@ import java.util.Map;
 @Service
 public class HrPolicyService {
 
+    private static final Logger log = LoggerFactory.getLogger(HrPolicyService.class);
+
     private final ChatClient chatClient;
     private final EmbeddingModel embeddingModel;
     private final Resource hrDocument;
@@ -53,12 +58,17 @@ public class HrPolicyService {
                 .build();
 
         this.chatClient = chatClientBuilder
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new SimpleLoggerAdvisor()
+                )
                 .build();
+        log.info("[Memory]    HrPolicyService initialised | store=InMemoryChatMemoryRepository");
     }
 
     @PostConstruct
     public void init() {
+        log.info("[INGESTION] Loading HR policies | source=hr-policies.txt");
         VectorStore hrStore = SimpleVectorStore.builder(embeddingModel).build();
         var reader = new TextReader(hrDocument);
         reader.getCustomMetadata().put("source", "hr-policies");
@@ -71,7 +81,10 @@ public class HrPolicyService {
                 .withKeepSeparator(true)
                 .build();
         List<Document> chunks = splitter.apply(reader.get());
+        log.info("[→VectorDB] Storing {} HR policy chunks (in-memory)", chunks.size());
+        long t0 = System.currentTimeMillis();
         hrStore.add(chunks);
+        log.info("[←VectorDB] HR policy store ready | chunks={} | elapsed={}ms", chunks.size(), System.currentTimeMillis() - t0);
         this.hrAdvisor = QuestionAnswerAdvisor.builder(hrStore).build();
     }
 
@@ -79,6 +92,11 @@ public class HrPolicyService {
      * Conversational HR Q&A with session memory.
      */
     public Map<String, String> askHr(String sessionId, String question) {
+        log.info("[Memory]    HR session | sessionId={} | question='{}'", sessionId, question);
+        log.info("[→VectorDB] Similarity search | collection=hr-policies | sessionId={}", sessionId);
+        log.info("[→Ollama]   Chat request (HR+Memory) | model=qwen3:4b | sessionId={}", sessionId);
+        long t0 = System.currentTimeMillis();
+
         String answer = chatClient.prompt()
                 .system("""
                         You are an HR assistant for CloudFlow Inc. Help employees understand
@@ -100,6 +118,8 @@ public class HrPolicyService {
                 .call()
                 .content();
 
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms | sessionId={}",
+                answer == null ? 0 : answer.length(), System.currentTimeMillis() - t0, sessionId);
         return Map.of("sessionId", sessionId, "question", question, "answer", answer);
     }
 
@@ -107,7 +127,11 @@ public class HrPolicyService {
      * Get a structured summary of a specific policy topic.
      */
     public PolicyInfo getPolicyInfo(String topic) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search | structured=PolicyInfo | topic='{}'", topic);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | outputType=PolicyInfo | topic='{}'", topic);
+        long t0 = System.currentTimeMillis();
+
+        PolicyInfo info = chatClient.prompt()
                 .system("""
                         You are an HR policy analyst. Extract structured information about the
                         requested policy topic from the employee handbook. Provide the policy
@@ -117,17 +141,28 @@ public class HrPolicyService {
                 .user("Extract policy details about: " + topic)
                 .call()
                 .entity(PolicyInfo.class);
+
+        log.info("[←Ollama]   Structured PolicyInfo received | elapsed={}ms", System.currentTimeMillis() - t0);
+        return info;
     }
 
     /**
      * Quick answer — single-turn Q&A without memory.
      */
     public String quickAnswer(String question) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search | collection=hr-policies | question='{}'", question);
+        log.info("[→Ollama]   Chat request (quick, no memory) | model=qwen3:4b | question='{}'", question);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .system("You are an HR assistant. Answer concisely based on the policy context.")
                 .advisors(hrAdvisor)
                 .user(question)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 }

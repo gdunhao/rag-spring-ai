@@ -1,7 +1,10 @@
 package com.example.rag_spring_ai.scenarios.legal;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.example.rag_spring_ai.model.LegalClause;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -36,6 +39,8 @@ import java.util.Map;
 @Service
 public class LegalSearchService {
 
+    private static final Logger log = LoggerFactory.getLogger(LegalSearchService.class);
+
     private final ChatClient chatClient;
     private final EmbeddingModel embeddingModel;
     private final Resource legalDocument;
@@ -45,13 +50,16 @@ public class LegalSearchService {
             ChatClient.Builder chatClientBuilder,
             EmbeddingModel embeddingModel,
             @Value("classpath:documents/legal/terms-of-service.txt") Resource legalDocument) {
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
         this.embeddingModel = embeddingModel;
         this.legalDocument = legalDocument;
     }
 
     @PostConstruct
     public void init() {
+        log.info("[INGESTION] Loading legal document | source=terms-of-service.txt");
         VectorStore legalStore = SimpleVectorStore.builder(embeddingModel).build();
         var reader = new TextReader(legalDocument);
         reader.getCustomMetadata().put("source", "terms-of-service");
@@ -65,7 +73,10 @@ public class LegalSearchService {
                 .withKeepSeparator(true)
                 .build();
         List<Document> chunks = splitter.apply(reader.get());
+        log.info("[→VectorDB] Storing {} legal chunks (in-memory, smaller chunks for clause precision)", chunks.size());
+        long t0 = System.currentTimeMillis();
         legalStore.add(chunks);
+        log.info("[←VectorDB] Legal store ready | chunks={} | elapsed={}ms", chunks.size(), System.currentTimeMillis() - t0);
         this.legalAdvisor = QuestionAnswerAdvisor.builder(legalStore).build();
     }
 
@@ -73,7 +84,11 @@ public class LegalSearchService {
      * Search for relevant legal clauses based on a natural language query.
      */
     public String searchClauses(String query) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search | collection=legal | query='{}'", query);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | scenario=LegalSearch | query='{}'", query);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .system("""
                         You are a legal document analyst. When asked about legal topics,
                         search the Terms of Service and provide accurate, specific answers.
@@ -85,13 +100,21 @@ public class LegalSearchService {
                 .user(query)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 
     /**
      * Extract structured legal clause information.
      */
     public List<LegalClause> extractStructuredClauses(String query) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search | structured=List<LegalClause> | query='{}'", query);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | outputType=List<LegalClause> | query='{}'", query);
+        long t0 = System.currentTimeMillis();
+
+        List<LegalClause> clauses = chatClient.prompt()
                 .system("""
                         You are a legal document analyst. Extract relevant clauses from the
                         Terms of Service as structured data. For each clause, provide the
@@ -102,12 +125,20 @@ public class LegalSearchService {
                 .user("Find all clauses related to: " + query)
                 .call()
                 .entity(new ParameterizedTypeReference<>() {});
+
+        log.info("[←Ollama]   Structured List<LegalClause> received | count={} | elapsed={}ms",
+                clauses == null ? 0 : clauses.size(), System.currentTimeMillis() - t0);
+        return clauses;
     }
 
     /**
      * Perform a compliance check — analyze if a specific practice is compliant.
      */
     public Map<String, String> complianceCheck(String practice) {
+        log.info("[→VectorDB] Similarity search | collection=legal | compliance check | practice='{}'", practice);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | scenario=ComplianceCheck | practice='{}'", practice);
+        long t0 = System.currentTimeMillis();
+
         String analysis = chatClient.prompt()
                 .system("""
                         You are a compliance analyst. Based on the Terms of Service, determine
@@ -121,6 +152,8 @@ public class LegalSearchService {
                 .call()
                 .content();
 
+        log.info("[←Ollama]   Compliance analysis received | chars={} | elapsed={}ms",
+                analysis == null ? 0 : analysis.length(), System.currentTimeMillis() - t0);
         return Map.of("practice", practice, "analysis", analysis);
     }
 }

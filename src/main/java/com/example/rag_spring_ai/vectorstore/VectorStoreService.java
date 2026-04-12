@@ -1,5 +1,7 @@
 package com.example.rag_spring_ai.vectorstore;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -22,6 +24,8 @@ import java.util.Map;
  */
 @Service
 public class VectorStoreService {
+
+    private static final Logger log = LoggerFactory.getLogger(VectorStoreService.class);
 
     private final VectorStore vectorStore;
     private final EmbeddingModel embeddingModel;
@@ -51,12 +55,12 @@ public class VectorStoreService {
                         Map.of("topic", "ml", "type", "concept"))
         );
 
+        log.info("[→VectorDB] Adding {} sample documents | topics=java,python,spring-boot,docker,kubernetes,ml", documents.size());
+        long t0 = System.currentTimeMillis();
         vectorStore.add(documents);
+        log.info("[←VectorDB] Stored {} documents | elapsed={}ms", documents.size(), System.currentTimeMillis() - t0);
 
-        return Map.of(
-                "documentsAdded", documents.size(),
-                "status", "success"
-        );
+        return Map.of("documentsAdded", documents.size(), "status", "success");
     }
 
     /**
@@ -66,9 +70,14 @@ public class VectorStoreService {
      * @param topK  Number of results to return
      */
     public List<Map<String, Object>> search(String query, int topK) {
+        log.info("[→VectorDB] Similarity search | query='{}' | topK={}", query, topK);
+        long t0 = System.currentTimeMillis();
+
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.builder().query(query).topK(topK).build()
         );
+
+        log.info("[←VectorDB] Search complete | results={} | elapsed={}ms", results.size(), System.currentTimeMillis() - t0);
 
         return results.stream()
                 .map(doc -> Map.<String, Object>of(
@@ -84,6 +93,9 @@ public class VectorStoreService {
      * Only returns documents above the minimum similarity score.
      */
     public List<Map<String, Object>> searchWithThreshold(String query, double threshold) {
+        log.info("[→VectorDB] Similarity search with threshold | query='{}' | threshold={}", query, threshold);
+        long t0 = System.currentTimeMillis();
+
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.builder()
                         .query(query)
@@ -91,6 +103,9 @@ public class VectorStoreService {
                         .similarityThreshold(threshold)
                         .build()
         );
+
+        log.info("[←VectorDB] Search complete | results={} | threshold={} | elapsed={}ms",
+                results.size(), threshold, System.currentTimeMillis() - t0);
 
         return results.stream()
                 .map(doc -> Map.<String, Object>of(
@@ -104,7 +119,11 @@ public class VectorStoreService {
      * Get embedding information — useful for understanding vector dimensions.
      */
     public Map<String, Object> getEmbeddingInfo(String text) {
+        log.info("[→Ollama]   Embedding request | model=nomic-embed-text | text='{}'", text);
+        long t0 = System.currentTimeMillis();
         float[] embedding = embeddingModel.embed(text);
+        log.info("[←Ollama]   Embedding received | dimensions={} | elapsed={}ms", embedding.length, System.currentTimeMillis() - t0);
+
         return Map.of(
                 "text", text,
                 "dimensions", embedding.length,
@@ -113,4 +132,3 @@ public class VectorStoreService {
         );
     }
 }
-

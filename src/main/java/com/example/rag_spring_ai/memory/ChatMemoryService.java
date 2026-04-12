@@ -1,7 +1,10 @@
 package com.example.rag_spring_ai.memory;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
@@ -37,6 +40,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ChatMemoryService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatMemoryService.class);
+
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final VectorStore vectorStore;
@@ -58,8 +63,12 @@ public class ChatMemoryService {
                         Use the retrieved context to answer questions. Remember the conversation
                         history and use it to understand follow-up questions.
                         """)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        new SimpleLoggerAdvisor()
+                )
                 .build();
+        log.info("[Memory] ChatMemoryService initialised | store=InMemoryChatMemoryRepository");
     }
 
     /**
@@ -67,13 +76,22 @@ public class ChatMemoryService {
      * The QuestionAnswerAdvisor is added per-call on top of the default memory advisor.
      */
     public String chat(String sessionId, String message) {
-        activeSessions.add(sessionId);
-        return chatClient.prompt()
+        boolean isNew = activeSessions.add(sessionId);
+        log.info("[Memory]    Session {} | message='{}'", isNew ? "NEW" : "RESUMED", message);
+        log.info("[→VectorDB] Similarity search via QuestionAnswerAdvisor | sessionId={}", sessionId);
+        log.info("[→Ollama]   Chat request (RAG+Memory) | model=qwen3:4b | sessionId={}", sessionId);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .advisors(QuestionAnswerAdvisor.builder(vectorStore).build())
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
                 .user(message)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms | sessionId={}",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0, sessionId);
+        return response;
     }
 
     /**
@@ -81,13 +99,21 @@ public class ChatMemoryService {
      * Shows memory working independently of document retrieval.
      */
     public String chatWithoutRag(String sessionId, String message) {
-        activeSessions.add(sessionId);
-        return chatClient.prompt()
+        boolean isNew = activeSessions.add(sessionId);
+        log.info("[Memory]    Session {} (memory-only, no RAG) | message='{}'", isNew ? "NEW" : "RESUMED", message);
+        log.info("[→Ollama]   Chat request (Memory only) | model=qwen3:4b | sessionId={}", sessionId);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .system("You are a friendly assistant. Remember our conversation history.")
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
                 .user(message)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms | sessionId={}",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0, sessionId);
+        return response;
     }
 
     /**
@@ -96,12 +122,14 @@ public class ChatMemoryService {
     public void clearSession(String sessionId) {
         chatMemory.clear(sessionId);
         activeSessions.remove(sessionId);
+        log.info("[Memory]    Session CLEARED | sessionId={}", sessionId);
     }
 
     /**
      * List active sessions.
      */
     public Map<String, Object> getSessionInfo() {
+        log.debug("[Memory]    Active sessions={}", activeSessions.size());
         return Map.of(
                 "activeSessions", activeSessions.size(),
                 "sessionIds", List.copyOf(activeSessions)

@@ -1,6 +1,9 @@
 package com.example.rag_spring_ai.function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class FunctionCallingService {
 
+    private static final Logger log = LoggerFactory.getLogger(FunctionCallingService.class);
+
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final FunctionConfig.SupportTools supportTools;
@@ -31,7 +36,9 @@ public class FunctionCallingService {
         this.vectorStore = vectorStore;
         this.supportTools = supportTools;
         this.weatherTools = weatherTools;
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
     }
 
     /**
@@ -39,7 +46,11 @@ public class FunctionCallingService {
      * Uses RAG to check if the issue is covered in the FAQ first.
      */
     public String handleSupportRequest(String userMessage) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search via QuestionAnswerAdvisor | message='{}'", userMessage);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | tools=SupportTools | message='{}'", userMessage);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .system("""
                         You are a customer support agent for CloudFlow. First, check the knowledge
                         base for relevant information. If you can answer the question directly from
@@ -52,13 +63,21 @@ public class FunctionCallingService {
                 .user(userMessage)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 
     /**
      * LLM uses weather and support tools alongside RAG context.
      */
     public String askWithTools(String question) {
-        return chatClient.prompt()
+        log.info("[→VectorDB] Similarity search via QuestionAnswerAdvisor | question='{}'", question);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | tools=WeatherTools+SupportTools | question='{}'", question);
+        long t0 = System.currentTimeMillis();
+
+        String response = chatClient.prompt()
                 .system("""
                         You are a helpful assistant with access to tools. Use the available
                         tools when the user asks about weather or order status. For other
@@ -69,5 +88,9 @@ public class FunctionCallingService {
                 .user(question)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 }

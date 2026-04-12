@@ -1,6 +1,9 @@
 package com.example.rag_spring_ai.metadata;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -34,17 +37,22 @@ import java.util.Map;
 @Service
 public class MetadataFilterService {
 
+    private static final Logger log = LoggerFactory.getLogger(MetadataFilterService.class);
+
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
 
     public MetadataFilterService(ChatClient.Builder chatClientBuilder, VectorStore vectorStore) {
         this.vectorStore = vectorStore;
         // Build once in the constructor — reused across all requests
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
     }
 
     @PostConstruct
     public void ingestDocumentsWithMetadata() {
+        log.info("[INGESTION] Seeding metadata-enriched documents into VectorDB");
         List<Document> documents = new ArrayList<>();
 
         // Product documentation — different versions and categories
@@ -73,14 +81,19 @@ public class MetadataFilterService {
                 Map.of("product", "cloudflow", "version", "2.5", "category", "security", "year", "2026")
         ));
 
+        log.info("[→VectorDB] Storing {} documents with metadata (product/version/category/year)", documents.size());
+        long t0 = System.currentTimeMillis();
         vectorStore.add(documents);
+        log.info("[←VectorDB] Stored {} metadata-enriched documents | elapsed={}ms", documents.size(), System.currentTimeMillis() - t0);
     }
 
     /**
      * Search with metadata filter — filter by product name.
      */
     public List<Map<String, Object>> searchByProduct(String query, String product) {
+        log.info("[→VectorDB] Similarity search | filter=product:'{}' | query='{}'", product, query);
         var filter = new FilterExpressionBuilder();
+        long t0 = System.currentTimeMillis();
 
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.builder()
@@ -90,11 +103,11 @@ public class MetadataFilterService {
                         .build()
         );
 
+        log.info("[←VectorDB] Search complete | filter=product:'{}' | results={} | elapsed={}ms",
+                product, results.size(), System.currentTimeMillis() - t0);
+
         return results.stream()
-                .map(doc -> Map.<String, Object>of(
-                        "content", doc.getText(),
-                        "metadata", doc.getMetadata()
-                ))
+                .map(doc -> Map.<String, Object>of("content", doc.getText(), "metadata", doc.getMetadata()))
                 .toList();
     }
 
@@ -102,7 +115,9 @@ public class MetadataFilterService {
      * Search with metadata filter — filter by category.
      */
     public List<Map<String, Object>> searchByCategory(String query, String category) {
+        log.info("[→VectorDB] Similarity search | filter=category:'{}' | query='{}'", category, query);
         var filter = new FilterExpressionBuilder();
+        long t0 = System.currentTimeMillis();
 
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.builder()
@@ -112,11 +127,11 @@ public class MetadataFilterService {
                         .build()
         );
 
+        log.info("[←VectorDB] Search complete | filter=category:'{}' | results={} | elapsed={}ms",
+                category, results.size(), System.currentTimeMillis() - t0);
+
         return results.stream()
-                .map(doc -> Map.<String, Object>of(
-                        "content", doc.getText(),
-                        "metadata", doc.getMetadata()
-                ))
+                .map(doc -> Map.<String, Object>of("content", doc.getText(), "metadata", doc.getMetadata()))
                 .toList();
     }
 
@@ -125,17 +140,24 @@ public class MetadataFilterService {
      * The system prompt interpolates the product name; the ChatClient is reused.
      */
     public String askAboutProduct(String question, String product) {
+        log.info("[→VectorDB] Similarity search | filter=product:'{}' | topK=3 | question='{}'", product, question);
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | product filter='{}'", product);
         var filter = new FilterExpressionBuilder();
         SearchRequest searchRequest = SearchRequest.builder()
                 .topK(3)
                 .filterExpression(filter.eq("product", product).build())
                 .build();
+        long t0 = System.currentTimeMillis();
 
-        return chatClient.prompt()
+        String response = chatClient.prompt()
                 .system("Answer questions using only the provided context for the " + product + " product.")
                 .advisors(QuestionAnswerAdvisor.builder(vectorStore).searchRequest(searchRequest).build())
                 .user(question)
                 .call()
                 .content();
+
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 }
