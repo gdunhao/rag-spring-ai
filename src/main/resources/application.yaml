@@ -1,6 +1,16 @@
 spring:
   application:
     name: rag-spring-ai
+  # ── MVC request-logging filter ─────────────────────────────────────────
+  mvc:
+    log-request-details: true
+
+  # ── Multipart file upload ───────────────────────────────────────────────
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 52MB
 
   # ── PostgreSQL datasource (matches docker-compose.yml) ─────────────────
   datasource:
@@ -42,4 +52,22 @@ server:
 
 logging:
   level:
-    org.springframework.ai: DEBUG
+    root: INFO
+    # ── Application layers ──────────────────────────────────────────────────
+    com.example.rag_spring_ai: DEBUG
+    # ── Spring AI advisor chain (QuestionAnswerAdvisor, SimpleLoggerAdvisor) ─
+    org.springframework.ai.chat.client.advisor: INFO
+    # ── Spring AI VectorStore operations ──────────────────────────────────
+    org.springframework.ai.vectorstore: DEBUG
+    # ── Spring AI Ollama HTTP client ───────────────────────────────────────
+    org.springframework.ai.ollama: INFO
+    # ── Spring AI embedding pipeline ──────────────────────────────────────
+    org.springframework.ai.embedding: DEBUG
+    # ── Suppress noisy libraries ──────────────────────────────────────────
+    org.apache.tika: WARN
+    org.postgresql: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %5level [%35.35logger{34}] %msg%n"
+    file:    "%d{yyyy-MM-dd HH:mm:ss.SSS} %5level [%logger{50}] %msg%n"
+  file:
+    name: logs/rag-spring-ai.log

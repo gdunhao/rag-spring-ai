@@ -1,8 +1,8 @@
 # RAG with Spring AI & Ollama — Comprehensive Demo Project
 
 <p align="center">
-  <img alt="Java 25" src="https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white">
-  <img alt="Spring Boot 3.5" src="https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?logo=springboot&logoColor=white">
+  <img alt="Java 25" src="https://img.shields.io/badge/Java-25_LTS-orange?logo=openjdk&logoColor=white">
+  <img alt="Spring Boot 3.5" src="https://img.shields.io/badge/Spring_Boot-3.5.13-6DB33F?logo=springboot&logoColor=white">
   <img alt="Spring AI 1.1" src="https://img.shields.io/badge/Spring_AI-1.1.4-6DB33F?logo=spring&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/Ollama-qwen3:4b-black?logo=ollama&logoColor=white">
   <img alt="PostgreSQL + pgvector" src="https://img.shields.io/badge/PostgreSQL-16+pgvector-4169E1?logo=postgresql&logoColor=white">
@@ -10,14 +10,16 @@
   <img alt="License" src="https://img.shields.io/badge/license-Educational-informational">
 </p>
 
-> A complete, hands-on guide to building **Retrieval-Augmented Generation** applications with **Spring AI** and **Ollama** (Qwen 3), covering 9 capability demos and 4 real-world scenarios — all running locally with zero cloud dependencies.
+> A complete, hands-on reference for building **Retrieval-Augmented Generation (RAG)** applications with **Spring AI** and **Ollama** (Qwen 3). Covers 9 capability demos and 4 real-world scenarios — everything runs **fully offline** on your machine with zero cloud dependencies.
 
 ---
 
 ## 📋 Table of Contents
 
+- [What You Will Learn](#-what-you-will-learn)
 - [Overview](#-overview)
-- [Technology Stack](#-technology-stack)
+- [Technology Stack](#️-technology-stack)
+- [System Requirements](#-system-requirements)
 - [Prerequisites](#-prerequisites)
 - [Quick Start](#-quick-start)
 - [Running Locally — Step by Step](#running-locally--step-by-step)
@@ -26,10 +28,30 @@
 - [API Reference](#-api-reference)
 - [Swagger / OpenAPI Specification](#-swagger--openapi-specification)
 - [Configuration](#️-configuration)
+- [Environment Variable Overrides](#-environment-variable-overrides)
+- [GPU Acceleration](#-gpu-acceleration)
 - [Makefile Reference](#️-makefile-reference)
 - [Testing](#-testing)
 - [How RAG Works](#-how-rag-works)
 - [Key Spring AI Concepts](#-key-spring-ai-concepts)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+
+---
+
+## 🎓 What You Will Learn
+
+By working through this project you will understand how to:
+
+- Build a **full RAG pipeline** in Java using Spring AI — from document ingestion to grounded LLM responses
+- Persist and query a **vector store** (PostgreSQL + pgvector) with HNSW similarity search
+- Maintain **conversational memory** across multi-turn chat sessions
+- Compose Spring AI **Advisors** (RAG retrieval, memory, safeguard) in a pipeline
+- Extract **structured output** (typed Java records) directly from LLM responses
+- Wire **function calling / tool use** so the model can invoke Java methods at runtime
+- Route queries across **multiple document collections** with a smart-routing strategy
+- Apply **metadata filters** to scope vector search to a subset of documents
+- Apply all of the above in four **real-world scenarios**: customer support, legal search, tech docs, and HR policy
 
 ---
 
@@ -58,7 +80,7 @@
 
 ---
 
-## 🛠 Technology Stack
+## 🛠️ Technology Stack
 
 | Layer | Technology | Version | Role |
 |-------|-----------|---------|------|
@@ -69,7 +91,7 @@
 | Chat model | Qwen 3 4B | `qwen3:4b` | Instruction-following, tool calling |
 | Embedding model | Nomic Embed Text | `nomic-embed-text` | 768-dim text embeddings |
 | Vector store | PostgreSQL + pgvector | 16 + HNSW | Persistent similarity search |
-| Containerization | Docker Compose | 24+ | Orchestrates Postgres + Ollama |
+| Containerization | Docker Compose | 24+ | Orchestrates PostgreSQL + Ollama |
 | Build tool | Maven | 3.9 (wrapper) | Dependency management + packaging |
 | Testing | JUnit 5 + Mockito + H2 | — | Unit & slice tests with in-memory DB |
 
@@ -77,11 +99,26 @@
 
 ---
 
+## 💻 System Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **RAM** | 8 GB | 16 GB+ |
+| **Free disk space** | 8 GB | 12 GB+ |
+| **CPU** | 4 cores | 8 cores+ |
+| **GPU** | not required | NVIDIA or Apple Silicon for faster inference |
+
+> **RAM note:** `qwen3:4b` requires ~4 GB of RAM during inference on top of OS and JVM overhead. Running with less than 8 GB total may cause the Ollama container to OOM-kill the model process. If memory is constrained, switch to `qwen3:1.7b` (~2 GB).
+
+> **Disk note:** Docker images + PostgreSQL data volume + two Ollama models (`qwen3:4b` ≈ 2.6 GB, `nomic-embed-text` ≈ 274 MB) consume roughly 6–7 GB on the first run.
+
+---
+
 ## ✅ Prerequisites
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| **Java** | 25+ | Runtime (project targets Java 25) |
+| **Java** | 25+ | Runtime (project targets Java 25 LTS) |
 | **Docker & Docker Compose** | 24+ | Runs PostgreSQL + pgvector + Ollama |
 | **Git** | any | Clone the repo |
 | **make** *(optional)* | any | Convenience wrapper around Maven & Docker |
@@ -120,7 +157,7 @@ make run
 # 3. Open the interactive playground in your browser
 open http://localhost:8080
 
-# Or use curl directly:
+# Or verify with curl:
 curl -s -X POST http://localhost:8080/api/basic/ingest | jq
 curl -s -X POST http://localhost:8080/api/basic/ask \
   -H "Content-Type: application/json" \
@@ -301,7 +338,7 @@ src/main/java/com/example/rag_spring_ai/
     └── hr/                              # HR Policy Q&A
 ```
 
-Each module follows the same pattern: `*Controller.java` handles HTTP and delegates to `*Service.java`, which owns the Spring AI interactions.
+Each module follows the same pattern: `*Controller.java` handles HTTP and delegates to `*Service.java`, which owns all Spring AI interactions.
 
 > 📊 **Architecture diagrams** (system architecture, RAG pipelines, advisor chain, multi-doc routing, function calling, metadata filtering, structured output, and more) are in **[DIAGRAMS.md](DIAGRAMS.md)**.
 
@@ -748,11 +785,11 @@ docker run -p 8081:8080 \
 ```
 
 ```bash
-# Option B — Node.js / npx
-npx @stoplight/spectral-cli lint openapi.yaml   # validate
+# Option B — validate the spec with Spectral CLI
+npx @stoplight/spectral-cli lint openapi.yaml
 ```
 
-### Highlights
+### Endpoint index
 
 | # | Tag | Endpoints | Key schemas |
 |---|-----|-----------|-------------|
@@ -825,6 +862,84 @@ docker exec rag-ollama ollama pull qwen3:8b
 
 # Native Ollama
 ollama pull qwen3:8b
+```
+
+---
+
+## 🌐 Environment Variable Overrides
+
+All `application.yaml` values can be overridden at runtime with environment variables using Spring Boot's [relaxed binding](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config.typesafe-configuration-properties.relaxed-binding) rules — no YAML edits required.
+
+| Environment variable | Default | Description |
+|----------------------|---------|-------------|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/ragdb` | PostgreSQL JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | `raguser` | Database username |
+| `SPRING_DATASOURCE_PASSWORD` | `ragpassword` | Database password |
+| `SPRING_AI_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API base URL |
+| `SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL` | `qwen3:4b` | Chat model name |
+| `SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL` | `nomic-embed-text` | Embedding model name |
+| `SPRING_AI_OLLAMA_CHAT_OPTIONS_TEMPERATURE` | `0.7` | LLM sampling temperature |
+| `SPRING_AI_OLLAMA_CHAT_OPTIONS_NUM_PREDICT` | `512` | Max tokens per response |
+| `SERVER_PORT` | `8080` | HTTP port |
+
+**Example — point to a remote Ollama instance:**
+
+```bash
+SPRING_AI_OLLAMA_BASE_URL=http://my-gpu-server:11434 ./mvnw spring-boot:run
+```
+
+**Example — pass overrides directly to the JAR:**
+
+```bash
+java -jar target/rag-spring-ai-0.0.1-SNAPSHOT.jar \
+  --spring.datasource.url=jdbc:postgresql://prod-db:5432/ragdb \
+  --spring.ai.ollama.base-url=http://ollama-host:11434
+```
+
+---
+
+## 🚀 GPU Acceleration
+
+By default Ollama runs on the CPU, which is sufficient for demos but slow (~30–120 s per response on a modern laptop). A compatible GPU can reduce latency to single-digit seconds.
+
+### NVIDIA GPU (Linux / Windows WSL2)
+
+The `ollama/ollama` Docker image includes CUDA support. Add the `deploy` block to the `ollama` service in `docker-compose.yml`:
+
+```yaml
+ollama:
+  image: ollama/ollama:latest
+  # ...existing config...
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+```
+
+Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) on the host.
+
+### Apple Silicon (macOS)
+
+Metal GPU acceleration is enabled automatically when Ollama runs natively:
+
+```bash
+brew install ollama
+ollama serve
+```
+
+No extra configuration is needed — the macOS binary uses the Metal backend by default. Follow [Option B: Native Ollama](#option-b-native-ollama) and start only PostgreSQL via Docker.
+
+### Verifying GPU usage
+
+```bash
+# NVIDIA
+nvidia-smi    # should show GPU memory usage while a model is loaded
+
+# Ollama startup log
+docker compose logs ollama | grep -i "gpu\|metal\|cuda"
 ```
 
 ---
@@ -951,7 +1066,133 @@ The vector store is **persistent** — documents are stored in PostgreSQL and su
 
 ---
 
+## 🔧 Troubleshooting
+
+### Application fails to connect to PostgreSQL on startup
+
+```
+Connection refused: localhost/127.0.0.1:5432
+```
+
+**Cause:** The database container is not running or hasn't finished starting yet.  
+**Fix:**
+```bash
+docker compose ps                      # check container status
+docker compose up -d postgres          # start if not running
+docker compose logs postgres | tail -20
+```
+
+---
+
+### Ollama model not found
+
+```
+error loading model: model 'qwen3:4b' not found
+```
+
+**Cause:** The `ollama-init` container exited before finishing the pull, or the `ollama_data` volume was deleted.  
+**Fix:**
+```bash
+make pull-models
+# or manually:
+docker exec rag-ollama ollama pull qwen3:4b
+docker exec rag-ollama ollama pull nomic-embed-text
+```
+
+---
+
+### LLM responses time out
+
+```
+Read timeout after PT5M
+```
+
+**Cause:** The model is too large for the available hardware, or the container has insufficient RAM.  
+**Fix:** Switch to a smaller model:
+```yaml
+# application.yaml
+spring:
+  ai:
+    ollama:
+      chat:
+        options:
+          model: qwen3:1.7b
+```
+
+---
+
+### Port 5432 or 11434 already in use
+
+```
+Bind for 0.0.0.0:5432 failed: port is already allocated
+```
+
+**Cause:** Another PostgreSQL or Ollama instance is already running on the host.  
+**Fix:** Remap the host-side port in `docker-compose.yml`:
+```yaml
+ports:
+  - "5433:5432"    # host:container
+```
+Then update `application.yaml`:
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ragdb
+```
+
+---
+
+### `vector_store` table missing or dimension mismatch
+
+```
+column "embedding" is of type vector(768) but expression is of type vector(1536)
+```
+
+**Cause:** The database was previously initialised with a different embedding model (e.g., an OpenAI 1536-dim model).  
+**Fix:** Drop the stale table and let Spring AI recreate it:
+```bash
+docker exec -it rag-postgres psql -U raguser -d ragdb \
+  -c "DROP TABLE IF EXISTS vector_store;"
+# Restart the app — initialize-schema: true will recreate it with the correct dimension
+```
+
+---
+
+### Tests fail with H2 SQL errors
+
+**Cause:** A Spring AI schema migration uses PostgreSQL-specific syntax not supported by H2.  
+**Fix:** Ensure `src/test/resources/application-test.yaml` sets `initialize-schema: false` and that any `schema.sql` used in tests uses H2-compatible syntax.
+
+---
+
+### `make` not found on macOS
+
+```bash
+xcode-select --install    # installs make along with the Xcode Command Line Tools
+```
+
+---
+
+## 🤝 Contributing
+
+This is an educational project — contributions that improve clarity, fix bugs, add new demos, or expand documentation are welcome.
+
+1. **Fork** the repository and create a feature branch:
+   ```bash
+   git checkout -b feat/my-improvement
+   ```
+2. **Follow the existing module pattern** — `*Controller.java` + `*Service.java` + matching test classes under `src/test/`.
+3. **Run the full test suite** before opening a PR:
+   ```bash
+   ./mvnw test
+   ```
+4. **Update this README** (and `openapi.yaml` if you add endpoints) as part of your change.
+5. Open a **Pull Request** with a clear description of what changed and why.
+
+> For substantial changes, open an issue first to discuss the approach.
+
+---
+
 ## 📝 License
 
-This project is for educational purposes. Feel free to use it as a starting point for your own RAG applications.
-
+This project is for **educational purposes**. Feel free to use it as a starting point for your own RAG applications.

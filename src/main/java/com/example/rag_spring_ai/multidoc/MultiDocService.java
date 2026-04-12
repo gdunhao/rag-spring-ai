@@ -1,6 +1,9 @@
 package com.example.rag_spring_ai.multidoc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -33,6 +36,8 @@ import java.util.Map;
 @Service
 public class MultiDocService {
 
+    private static final Logger log = LoggerFactory.getLogger(MultiDocService.class);
+
     private final ChatClient chatClient;
     private final EmbeddingModel embeddingModel;
 
@@ -54,7 +59,9 @@ public class MultiDocService {
             @Value("classpath:documents/legal/terms-of-service.txt") Resource legalDocument,
             @Value("classpath:documents/techdocs/api-guide.txt") Resource techDocument,
             @Value("classpath:documents/hr/hr-policies.txt") Resource hrDocument) {
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
         this.embeddingModel = embeddingModel;
         this.faqDocument = faqDocument;
         this.legalDocument = legalDocument;
@@ -64,19 +71,24 @@ public class MultiDocService {
 
     @PostConstruct
     public void init() {
+        log.info("[INGESTION] Initialising multi-document collections (faq, legal, tech, hr)");
         faqAdvisor    = advisorFor(createAndIngest(faqDocument,    "customer-faq",     "faq"));
         legalAdvisor  = advisorFor(createAndIngest(legalDocument,  "terms-of-service", "legal"));
         techAdvisor   = advisorFor(createAndIngest(techDocument,   "api-guide",        "technical"));
         hrAdvisor     = advisorFor(createAndIngest(hrDocument,     "hr-policies",      "hr"));
+        log.info("[INGESTION] All collections ready | faq | legal | technical | hr");
     }
 
     private VectorStore createAndIngest(Resource resource, String source, String collection) {
+        log.info("[→VectorDB] Creating in-memory store for collection='{}' | source='{}'", collection, source);
         SimpleVectorStore store = SimpleVectorStore.builder(embeddingModel).build();
         var reader = new TextReader(resource);
         reader.getCustomMetadata().put("source", source);
         reader.getCustomMetadata().put("collection", collection);
         List<Document> chunks = new TokenTextSplitter().apply(reader.get());
+        long t0 = System.currentTimeMillis();
         store.add(chunks);
+        log.info("[←VectorDB] Stored {} chunks | collection='{}' | elapsed={}ms", chunks.size(), collection, System.currentTimeMillis() - t0);
         return store;
     }
 
@@ -88,6 +100,7 @@ public class MultiDocService {
      * Query a specific document collection.
      */
     public String queryCollection(String collection, String question) {
+        log.info("[→VectorDB] Similarity search | collection='{}' | question='{}'", collection, question);
         QuestionAnswerAdvisor advisor = switch (collection.toLowerCase()) {
             case "faq"                  -> faqAdvisor;
             case "legal"                -> legalAdvisor;
@@ -96,12 +109,17 @@ public class MultiDocService {
             default -> throw new IllegalArgumentException("Unknown collection: " + collection);
         };
 
-        return chatClient.prompt()
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | collection='{}'", collection);
+        long t0 = System.currentTimeMillis();
+        String response = chatClient.prompt()
                 .system("Answer using only the provided " + collection + " documentation context.")
                 .advisors(advisor)
                 .user(question)
                 .call()
                 .content();
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 
     /**
@@ -128,12 +146,9 @@ public class MultiDocService {
             detectedCollection = "faq"; // default
         }
 
+        log.info("[Router]    Smart routing | question='{}' → collection='{}'", question, detectedCollection);
         String answer = queryCollection(detectedCollection, question);
-        return Map.of(
-                "question", question,
-                "detectedCollection", detectedCollection,
-                "answer", answer
-        );
+        return Map.of("question", question, "detectedCollection", detectedCollection, "answer", answer);
     }
 
     /**

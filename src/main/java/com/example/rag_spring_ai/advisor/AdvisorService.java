@@ -1,7 +1,10 @@
 package com.example.rag_spring_ai.advisor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SafeGuardAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -32,13 +35,17 @@ import java.util.Map;
 @Service
 public class AdvisorService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdvisorService.class);
+
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
 
     public AdvisorService(ChatClient.Builder chatClientBuilder, VectorStore vectorStore) {
         this.vectorStore = vectorStore;
         // Build once — thread-safe, no per-request allocation
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
     }
 
     /**
@@ -48,17 +55,23 @@ public class AdvisorService {
      * overrides it with the live user message at runtime.
      */
     public String askWithCustomRetrieval(String question, int topK, double threshold) {
+        log.info("[→VectorDB] Similarity search | topK={} | threshold={} | question='{}'", topK, threshold, question);
         SearchRequest searchRequest = SearchRequest.builder()
                 .topK(topK)
                 .similarityThreshold(threshold)
                 .build();
 
-        return chatClient.prompt()
+        log.info("[→Ollama]   Chat request | model=qwen3:4b | advisor=QuestionAnswerAdvisor");
+        long t0 = System.currentTimeMillis();
+        String response = chatClient.prompt()
                 .system("Answer based on provided context. Cite sources when possible.")
                 .advisors(QuestionAnswerAdvisor.builder(vectorStore).searchRequest(searchRequest).build())
                 .user(question)
                 .call()
                 .content();
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 
     // In Spring AI 1.0.x SafeGuardAdvisor returns this prefix instead of throwing
@@ -70,8 +83,10 @@ public class AdvisorService {
      * Useful for content moderation before sending to the LLM.
      */
     public Map<String, String> askWithSafeGuard(String question) {
+        log.info("[→Ollama]   Chat request | advisors=SafeGuardAdvisor+QuestionAnswerAdvisor | question='{}'", question);
         List<String> bannedWords = List.of("hack", "exploit", "injection", "bypass security");
 
+        long t0 = System.currentTimeMillis();
         String answer = chatClient.prompt()
                 .system("You are a helpful assistant.")
                 .advisors(
@@ -82,9 +97,8 @@ public class AdvisorService {
                 .call()
                 .content();
 
-        // SafeGuardAdvisor (Spring AI 1.0.x) returns its failure message as the response
-        // rather than throwing — detect it by checking the response prefix.
         if (answer == null || answer.startsWith(SAFEGUARD_FAILURE_PREFIX)) {
+            log.warn("[SafeGuard] Request BLOCKED | question='{}' | elapsed={}ms", question, System.currentTimeMillis() - t0);
             return Map.of(
                     "question", question,
                     "answer", "Request blocked by SafeGuard",
@@ -92,6 +106,8 @@ public class AdvisorService {
                     "reason", "Sensitive content detected in request"
             );
         }
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms | blocked=false",
+                answer.length(), System.currentTimeMillis() - t0);
         return Map.of("question", question, "answer", answer, "blocked", "false");
     }
 
@@ -101,9 +117,11 @@ public class AdvisorService {
      * then QuestionAnswerAdvisor (retrieves context), then the LLM call.
      */
     public String askWithComposedAdvisors(String question) {
+        log.info("[→Ollama]   Chat request | advisors=SafeGuardAdvisor+QuestionAnswerAdvisor (composed) | question='{}'", question);
         List<String> bannedWords = List.of("hack", "exploit");
 
-        return chatClient.prompt()
+        long t0 = System.currentTimeMillis();
+        String response = chatClient.prompt()
                 .system("""
                         You are a secure, knowledgeable assistant. Answer questions using
                         the provided context. If the question seems potentially harmful,
@@ -116,5 +134,8 @@ public class AdvisorService {
                 .user(question)
                 .call()
                 .content();
+        log.info("[←Ollama]   Response received | chars={} | elapsed={}ms",
+                response == null ? 0 : response.length(), System.currentTimeMillis() - t0);
+        return response;
     }
 }

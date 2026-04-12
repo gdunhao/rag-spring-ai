@@ -1,5 +1,7 @@
 package com.example.rag_spring_ai.function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,28 +48,36 @@ public class FunctionConfig {
      */
     public static class SupportTools {
 
+        private static final Logger log = LoggerFactory.getLogger(SupportTools.class);
+
         @Tool(description = "Create a customer support ticket. Use this when the customer's issue cannot be resolved from the FAQ and needs human intervention.")
         public TicketResponse createTicket(TicketRequest request) {
             String ticketId = "TKT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-            return new TicketResponse(
-                    ticketId,
-                    "OPEN",
+            log.info("[⚙Tool]     createTicket invoked by Ollama | customer='{}' | issue='{}' | priority={} | ticketId={}",
+                    request.customerName(), request.issue(), request.priority(), ticketId);
+            TicketResponse response = new TicketResponse(
+                    ticketId, "OPEN",
                     "Ticket created for: " + request.issue() + " (Priority: " + request.priority() + ")",
                     LocalDateTime.now().toString()
             );
+            log.info("[⚙Tool]     createTicket result | ticketId={} | status={}", response.ticketId(), response.status());
+            return response;
         }
 
         @Tool(description = "Look up the status of a customer order by order ID. Use this when a customer asks about their order status.")
         public OrderResponse lookupOrder(OrderRequest request) {
+            log.info("[⚙Tool]     lookupOrder invoked by Ollama | orderId='{}'", request.orderId());
             Map<String, OrderResponse> orders = Map.of(
-                    "ORD-001", new OrderResponse("ORD-001", "SHIPPED", "April 12, 2026", "CloudFlow Pro License x1"),
+                    "ORD-001", new OrderResponse("ORD-001", "SHIPPED",    "April 12, 2026", "CloudFlow Pro License x1"),
                     "ORD-002", new OrderResponse("ORD-002", "PROCESSING", "April 15, 2026", "CloudFlow Enterprise License x5"),
-                    "ORD-003", new OrderResponse("ORD-003", "DELIVERED", "April 5, 2026", "CloudFlow Starter License x1")
+                    "ORD-003", new OrderResponse("ORD-003", "DELIVERED",  "April 5, 2026",  "CloudFlow Starter License x1")
             );
-            return orders.getOrDefault(
+            OrderResponse result = orders.getOrDefault(
                     request.orderId(),
                     new OrderResponse(request.orderId(), "NOT_FOUND", "N/A", "No order found with this ID")
             );
+            log.info("[⚙Tool]     lookupOrder result | orderId={} | status={}", result.orderId(), result.status());
+            return result;
         }
     }
 
@@ -77,18 +87,24 @@ public class FunctionConfig {
      */
     public static class WeatherTools {
 
+        private static final Logger log = LoggerFactory.getLogger(WeatherTools.class);
+
         @Tool(description = "Get the current weather for a given city. Use this when the user asks about weather conditions.")
         public WeatherResponse getWeather(WeatherRequest request) {
+            log.info("[⚙Tool]     getWeather invoked by Ollama | city='{}'", request.city());
             Map<String, WeatherResponse> weather = Map.of(
                     "New York",      new WeatherResponse("New York",      18.5, "Partly Cloudy", "Celsius"),
                     "London",        new WeatherResponse("London",        12.0, "Rainy",          "Celsius"),
                     "Tokyo",         new WeatherResponse("Tokyo",         22.0, "Sunny",          "Celsius"),
                     "San Francisco", new WeatherResponse("San Francisco", 16.0, "Foggy",          "Celsius")
             );
-            return weather.getOrDefault(
+            WeatherResponse result = weather.getOrDefault(
                     request.city(),
                     new WeatherResponse(request.city(), 20.0, "Clear", "Celsius")
             );
+            log.info("[⚙Tool]     getWeather result | city={} | temp={}°{} | condition={}",
+                    result.city(), result.temperature(), result.unit(), result.condition());
+            return result;
         }
     }
 
