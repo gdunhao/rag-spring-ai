@@ -332,7 +332,7 @@ That's it. The playground is served as a static file from `src/main/resources/st
 ### What it looks like
 
 ```mermaid
-%%{init: {'theme': 'dark'}}%%
+%%{init: {'theme': 'default'}}%%
 mindmap
   root((🤖 RAG Spring AI<br/>Playground))
     🗂️ Sidebar
